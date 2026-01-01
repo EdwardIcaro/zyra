@@ -1,0 +1,66 @@
+{
+  "sword_ink_blade": {
+    "itemId": "sword_ink_blade",
+    "name": "Ink Blade",
+    "grade": "C",
+    "type": "weapon",
+    "slot": "weapon",
+    "requiredLevel": 1,
+    "requiredClass": ["warrior", "paladin"],
+    "baseStats": { "damage": 15, "strength": 2 },
+    "description": "Uma lâmina básica para iniciantes."
+  },
+  "armor_leather_chest": {
+    "itemId": "armor_leather_chest",
+    "name": "Leather Armor",
+    "grade": "C",
+    "type": "armor",
+    "slot": "chest",
+    "requiredLevel": 1,
+    "requiredClass": ["warrior", "paladin", "archer", "mage"],
+    "baseStats": { "defense": 8, "maxHp": 20 },
+    "description": "Armadura leve de couro."
+  },
+  "sword_doom": {
+    "itemId": "sword_doom",
+    "name": "Sword of Doom",
+    "grade": "A",
+    "type": "weapon",
+    "slot": "weapon",
+    "requiredLevel": 60,
+    "requiredClass": ["warrior"],
+    "baseStats": { "damage": 145, "strength": 12 },
+    "description": "Uma espada forjada nas profundezas, exala uma aura sombria."
+  },
+  "recipe_sword_doom": {
+    "itemId": "recipe_sword_doom",
+    "name": "Recipe: Sword of Doom",
+    "grade": "A",
+    "type": "recipe",
+    "description": "Papel com instruções para criar a Sword of Doom."
+  },
+  "mat_essential_doom": {
+    "itemId": "mat_essential_doom",
+    "name": "Essential Doom",
+    "grade": "A",
+    "type": "material",
+    "description": "Um fragmento de energia maligna pura."
+  },
+    "ink_vial": {
+    "id": "ink_vial",
+    "name": "Frasco de Tinta",
+    "grade": "A",
+    "type": "material",
+    "description": "Um frasco contendo tinta escura de slime.",
+    "stackable": true
+  },
+  "mat_wood_tick": {
+    "itemId": "mat_wood_tick",
+    "name": "Wood Tick",
+    "grade": "C",
+    "type": "material",
+    "description": "Madeira comum usada em diversas criações."
+  }
+  
+}
+

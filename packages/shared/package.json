@@ -1,0 +1,19 @@
+{
+  "name": "@zyra/shared",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@colyseus/schema": "^2.0.0",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

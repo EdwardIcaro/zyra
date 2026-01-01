@@ -1,0 +1,30 @@
+{
+  "name": "zyra",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ZYRA - 2D Browser-Based Action MMORPG",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter @zyra/server dev\" \"pnpm --filter @zyra/client dev\"",
+    "dev:server": "pnpm --filter @zyra/server dev",
+    "dev:client": "pnpm --filter @zyra/client dev",
+    "build": "pnpm --filter @zyra/shared build && pnpm --filter @zyra/server build && pnpm --filter @zyra/client build",
+    "build:shared": "pnpm --filter @zyra/shared build",
+    "build:server": "pnpm --filter @zyra/server build",
+    "build:client": "pnpm --filter @zyra/client build",
+    "clean": "pnpm -r exec rm -rf dist node_modules",
+    "lint": "pnpm -r exec eslint .",
+    "typecheck": "pnpm -r exec tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@zyra/client",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@zyra/shared": "workspace:*",
+    "pixi.js": "^8.7.4",
+    "colyseus.js": "^0.15.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11"
+  }
+}

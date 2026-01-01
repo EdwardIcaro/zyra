@@ -1,0 +1,30 @@
+{
+  "ink_slime": {
+    "id": "ink_slime",
+    "name": "Ink Slime",
+    "type": "elemental",
+    "level": 3,
+    "appearance": { "color": 2956093, "size": 18 },
+    "stats": {
+      "maxHp": 50,
+      "damage": 8,
+      "defense": 2,
+      "speed": 0.8,
+      "attackRange": 40
+    },
+    "behavior": {
+      "aggroType": "passive",
+      "aggroRange": 0,
+      "leashRange": 200,
+      "respawnTime": 30
+    },
+    "rewards": {
+      "baseExp": 15,
+      "goldMin": 3,
+      "goldMax": 8,
+      "drops": [
+        { "itemId": "ink_vial", "chance": 0.3 }
+      ]
+    }
+  }
+}

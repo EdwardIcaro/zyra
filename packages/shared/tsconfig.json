@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "composite": true,
+    "module": "CommonJS", // Garante compatibilidade com Node.js
+    "moduleResolution": "node"
+  },
+  "include": ["src/**/*", "src/data/items.json", "src/data/monsters.json", "src/data/skills.json", "src/data/buffs.json", "src/data/zones.json"], // Adicione o caminho do JSON aqui
+  "exclude": ["node_modules", "dist"]
+}
