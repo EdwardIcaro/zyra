@@ -1,0 +1,73 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-03T00:00:00.000Z",
+  "configs": {
+    "EYE_1": {
+      "id": 1,
+      "type": "EYE",
+      "targetId": 1,
+      "layers": [
+        {
+          "spritePath": "eyes/blue.png",
+          "offsetX": 0,
+          "offsetY": 5,
+          "scale": 1.0,
+          "zOrder": 2,
+          "colorTint": null
+        }
+      ],
+      "overrides": {}
+    },
+    "EYE_2": {
+      "id": 2,
+      "type": "EYE",
+      "targetId": 2,
+      "layers": [
+        {
+          "spritePath": "eyes/red.png",
+          "offsetX": 0,
+          "offsetY": 5,
+          "scale": 1.0,
+          "zOrder": 2,
+          "colorTint": null
+        }
+      ],
+      "overrides": {}
+    },
+    "HAT_1": {
+      "id": 3,
+      "type": "HAT",
+      "targetId": 1,
+      "layers": [
+        {
+          "spritePath": "hats/wizard.png",
+          "offsetX": 0,
+          "offsetY": -20,
+          "scale": 1.0,
+          "zOrder": 5,
+          "colorTint": null
+        }
+      ],
+      "overrides": {}
+    },
+    "MASK_42": {
+      "id": 42,
+      "type": "MASK",
+      "targetId": 42,
+      "layers": [
+        {
+          "spritePath": "masks/red_mask.png",
+          "offsetX": 0,
+          "offsetY": 0,
+          "scale": 1.0,
+          "zOrder": 3,
+          "colorTint": null
+        }
+      ],
+      "overrides": {
+        "hideEyes": true,
+        "hideHat": false
+      }
+    }
+  }
+}

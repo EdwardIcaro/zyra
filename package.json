@@ -13,18 +13,25 @@
     "build:client": "pnpm --filter @zyra/client build",
     "clean": "pnpm -r exec rm -rf dist node_modules",
     "lint": "pnpm -r exec eslint .",
-    "typecheck": "pnpm -r exec tsc --noEmit"
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "db:migrate": "pnpm --filter @zyra/db prisma migrate dev",
+    "db:generate": "pnpm --filter @zyra/db prisma generate"
   },
   "devDependencies": {
     "@types/node": "^20.10.6",
-    "concurrently": "^8.2.2",
-    "typescript": "^5.3.3",
-    "eslint": "^8.56.0",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
-    "@typescript-eslint/parser": "^6.17.0"
+    "@typescript-eslint/parser": "^6.17.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "dotenv": "^16.6.1",
+    "prisma": "5.22.0"
   }
 }

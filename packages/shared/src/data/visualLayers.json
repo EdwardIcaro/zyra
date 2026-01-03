@@ -1,0 +1,17 @@
+{
+  "version": "2.0",
+  "lastUpdated": "2026-01-03T20:25:47.330Z",
+  "layers": [
+    {
+      "zIndex": 0,
+      "type": "hats",
+      "asset": "hat_mage",
+      "offsetX": 9,
+      "offsetY": -38,
+      "scale": 0.1,
+      "rotation": 0,
+      "width": 60,
+      "height": 45
+    }
+  ]
+}

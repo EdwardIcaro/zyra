@@ -1,4 +1,5 @@
 // packages/shared/src/schema/PlayerState.ts
+// ATUALIZAÇÃO: Adicionar campos de customização de cores
 
 import { Schema, type, MapSchema } from '@colyseus/schema';
 import { ClassType } from '../types/enums';
@@ -11,27 +12,18 @@ export class PlayerState extends Schema {
   @type('string') username!: string;
   @type('string') classType!: ClassType;
   
-  // ==================== VISUAL CONFIG ====================
-  // Sprites
+  // ==================== VISUAL SYSTEM (Nova Arquitetura) ====================
+  @type('number') eyeTypeId: number = 1; // Referência ao VisualConfig tipo EYE
+  @type('string') bodyColor: string = '#FF6B6B'; // Cor do corpo (hex)
+  
+  // ✅ CAMPOS LEGADOS (mantidos para compatibilidade durante migração)
+  @type('string') eyeColor: string = '#FFFFFF';
   @type('string') visualBody: string = 'ball_red';
   @type('string') visualFace: string = 'eyes_determined';
   @type('string') visualHat: string = 'none';
   
-  // Face (Olhos) - Offsets
-  @type('number') faceOffsetX: number = 0;
-  @type('number') faceOffsetY: number = 5;
-  @type('number') faceScale: number = 1.0;
-  @type('number') faceRotation: number = 0;
-  @type('number') faceWidth: number = 35;
-  @type('number') faceHeight: number = 18;
-  
-  // Hat (Chapéu) - Offsets
-  @type('number') hatOffsetX: number = 0;
-  @type('number') hatOffsetY: number = -20;
-  @type('number') hatScale: number = 1.0;
-  @type('number') hatRotation: number = 0;
-  @type('number') hatWidth: number = 60;
-  @type('number') hatHeight: number = 45;
+  // Equipamentos com visual (array de IDs de VisualConfig)
+  @type(['number']) equippedVisualIds: number[] = [];
   
   // Position
   @type('number') x: number = 0;

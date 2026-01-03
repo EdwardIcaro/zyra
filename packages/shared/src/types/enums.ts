@@ -22,6 +22,7 @@ export enum ItemType {
   MATERIAL = 'material'
 }
 
+// ✅ ESTE ENUM JÁ ESTÁ CORRETO NO DOCUMENTO ORIGINAL
 export enum EquipSlot {
   WEAPON = 'weapon',
   HEAD = 'head',

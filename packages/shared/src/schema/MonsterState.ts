@@ -3,7 +3,7 @@ import { Schema, type } from '@colyseus/schema';
 export class MonsterState extends Schema {
   @type('string') id!: string;
   @type('string') templateId!: string;
-  @type('string') name!: string;
+  @type('string') name!: string; // ✅ ESTE CAMPO JÁ EXISTE
   @type('number') level: number = 1;
   
   @type('number') x: number = 0;

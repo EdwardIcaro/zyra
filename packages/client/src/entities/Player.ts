@@ -1,13 +1,27 @@
+// packages/client/src/entities/Player.ts
+// ATUALIZAÇÃO: Renderizar baseado em visualLayers.json global
+
 import { Container, Graphics, Text, Sprite } from 'pixi.js';
+import * as PIXI from 'pixi.js';
 import type { PlayerState } from '@zyra/shared';
+
+interface LayerConfig {
+  zIndex: number;
+  type: string;
+  asset: string;
+  offsetX: number;
+  offsetY: number;
+  scale: number;
+  rotation: number;
+  width: number;
+  height: number;
+}
 
 export class Player extends Container {
   private state: PlayerState;
   
   private visualContainer: Container;
-  private bodySprite: Sprite;
-  private faceSprite: Sprite;
-  private hatSprite: Sprite | null = null;
+  private layerSprites: Map<string, Sprite> = new Map();
   
   private hpBar: Graphics;
   private nameLabel: Text;
@@ -18,8 +32,10 @@ export class Player extends Container {
   private targetY: number;
   private lerpSpeed: number = 0.15;
   private animationTicker: number = 0;
-
   private facingDirection: number = 1;
+
+  // Cache da configuração global
+  private static globalLayersConfig: LayerConfig[] | null = null;
 
   constructor(state: PlayerState, isLocalPlayer: boolean) {
     super();
@@ -30,48 +46,9 @@ export class Player extends Container {
     this.position.set(state.x, state.y);
 
     this.visualContainer = new Container();
+    this.visualContainer.sortableChildren = true;
 
-    // ==================== CORPO ====================
-    this.bodySprite = Sprite.from(state.visualBody || 'ball_red');
-    this.bodySprite.anchor.set(0.5);
-    this.bodySprite.width = 58;
-    this.bodySprite.height = 58;
-
-    // ==================== ROSTO (OLHOS) - DINÂMICO ====================
-    this.faceSprite = Sprite.from(state.visualFace || 'eyes_determined');
-    this.faceSprite.anchor.set(0.5);
-    
-    // ← LENDO DO SCHEMA (não mais hardcoded!)
-    this.faceSprite.width = state.faceWidth || 35;
-    this.faceSprite.height = state.faceHeight || 18;
-    this.faceSprite.position.set(
-      state.faceOffsetX || 0, 
-      state.faceOffsetY || 5
-    );
-    this.faceSprite.scale.set(state.faceScale || 1.0);
-    this.faceSprite.rotation = ((state.faceRotation || 0) * Math.PI) / 180;
-
-    this.visualContainer.addChild(this.bodySprite, this.faceSprite);
-
-    // ==================== CHAPÉU - DINÂMICO ====================
-    if (state.visualHat && state.visualHat !== 'none') {
-      this.hatSprite = Sprite.from(state.visualHat);
-      this.hatSprite.anchor.set(0.5);
-      
-      // ← LENDO DO SCHEMA
-      this.hatSprite.width = state.hatWidth || 60;
-      this.hatSprite.height = state.hatHeight || 45;
-      this.hatSprite.position.set(
-        state.hatOffsetX || 0,
-        state.hatOffsetY || -20
-      );
-      this.hatSprite.scale.set(state.hatScale || 1.0);
-      this.hatSprite.rotation = ((state.hatRotation || 0) * Math.PI) / 180;
-      
-      this.visualContainer.addChild(this.hatSprite);
-    }
-
-    // ==================== UI ELEMENTS ====================
+    // UI Elements
     this.hpBar = new Graphics();
     
     this.nameLabel = new Text({ 
@@ -109,46 +86,144 @@ export class Player extends Container {
 
     this.addChild(this.visualContainer, this.hpBar, this.nameLabel, this.levelLabel);
 
-    // ==================== LISTENERS DE MUDANÇA ====================
+    // Carregar e renderizar camadas
+    this.loadAndRenderLayers();
+
+    // Listeners de mudança
     this.state.onChange(() => {
       this.targetX = this.state.x;
       this.targetY = this.state.y;
       
-      // Direção
       if (this.state.x < this.position.x) this.facingDirection = -1;
       else if (this.state.x > this.position.x) this.facingDirection = 1;
 
       this.updateVisuals();
-      this.updateVisualConfig(); // ← NOVO
     });
   }
 
   /**
-   * NOVO: Atualiza configurações visuais dinamicamente se mudarem
+   * Carregar configuração global de camadas e renderizar
    */
-  private updateVisualConfig() {
-    // Face
-    if (this.faceSprite) {
-      this.faceSprite.width = this.state.faceWidth || 35;
-      this.faceSprite.height = this.state.faceHeight || 18;
-      this.faceSprite.position.set(
-        this.state.faceOffsetX || 0,
-        this.state.faceOffsetY || 5
-      );
-      this.faceSprite.scale.set(this.state.faceScale || 1.0);
-      this.faceSprite.rotation = ((this.state.faceRotation || 0) * Math.PI) / 180;
+  private async loadAndRenderLayers() {
+    // Carregar config global se ainda não foi carregada
+    if (!Player.globalLayersConfig) {
+      try {
+        const res = await fetch('http://localhost:2567/api/admin/visual/global-layers');
+        if (res.ok) {
+          const data = await res.json();
+          Player.globalLayersConfig = data.layers || [];
+          const count = Player.globalLayersConfig?.length ?? 0;
+          console.log('[Player] Global layers loaded:', count);
+        }
+      } catch (e) {
+        console.error('[Player] Failed to load global layers:', e);
+        Player.globalLayersConfig = [];
+      }
     }
 
-    // Hat
-    if (this.hatSprite) {
-      this.hatSprite.width = this.state.hatWidth || 60;
-      this.hatSprite.height = this.state.hatHeight || 45;
-      this.hatSprite.position.set(
-        this.state.hatOffsetX || 0,
-        this.state.hatOffsetY || -20
-      );
-      this.hatSprite.scale.set(this.state.hatScale || 1.0);
-      this.hatSprite.rotation = ((this.state.hatRotation || 0) * Math.PI) / 180;
+    // Se não há config, usar fallback
+    if (!Player.globalLayersConfig || Player.globalLayersConfig.length === 0) {
+      await this.renderFallbackLayers();
+      return;
+    }
+
+    // TypeScript null-check (já validamos acima, mas TS não infere)
+    const layers = Player.globalLayersConfig;
+    if (!layers) return;
+
+    // Renderizar cada camada
+    for (const layer of layers) {
+      await this.renderLayer(layer);
+    }
+
+    // Aplicar cores customizadas
+    this.applyCustomColors();
+  }
+
+  /**
+   * Renderizar uma camada individual
+   */
+  private async renderLayer(layer: LayerConfig) {
+    const path = `/assets/sprites/${layer.type}/${layer.asset}.png`;
+
+    try {
+      const texture = await PIXI.Assets.load(path);
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(0.5);
+      sprite.x = layer.offsetX;
+      sprite.y = layer.offsetY;
+      sprite.scale.set(layer.scale);
+      sprite.rotation = (layer.rotation * Math.PI) / 180;
+      sprite.width = layer.width * layer.scale;
+      sprite.height = layer.height * layer.scale;
+      sprite.zIndex = layer.zIndex;
+
+      this.visualContainer.addChild(sprite);
+      this.layerSprites.set(layer.type, sprite);
+    } catch (e) {
+      console.error(`[Player] Failed to load layer ${layer.type}:`, e);
+    }
+  }
+
+  /**
+   * Fallback caso não haja configuração global
+   */
+  private async renderFallbackLayers() {
+    try {
+      // Corpo
+      const bodyTexture = await PIXI.Assets.load(`/assets/sprites/bodies/${this.state.visualBody}.png`);
+      const bodySprite = new Sprite(bodyTexture);
+      bodySprite.anchor.set(0.5);
+      bodySprite.width = 58;
+      bodySprite.height = 58;
+      bodySprite.zIndex = 0;
+      this.visualContainer.addChild(bodySprite);
+      this.layerSprites.set('bodies', bodySprite);
+
+      // Olhos
+      const eyeTexture = await PIXI.Assets.load(`/assets/sprites/eyes/${this.state.visualFace}.png`);
+      const eyeSprite = new Sprite(eyeTexture);
+      eyeSprite.anchor.set(0.5);
+      eyeSprite.y = 5;
+      eyeSprite.width = 35;
+      eyeSprite.height = 18;
+      eyeSprite.zIndex = 1;
+      this.visualContainer.addChild(eyeSprite);
+      this.layerSprites.set('eyes', eyeSprite);
+
+      // Chapéu (se houver)
+      if (this.state.visualHat && this.state.visualHat !== 'none') {
+        const hatTexture = await PIXI.Assets.load(`/assets/sprites/hats/${this.state.visualHat}.png`);
+        const hatSprite = new Sprite(hatTexture);
+        hatSprite.anchor.set(0.5);
+        hatSprite.y = -20;
+        hatSprite.width = 60;
+        hatSprite.height = 45;
+        hatSprite.zIndex = 2;
+        this.visualContainer.addChild(hatSprite);
+        this.layerSprites.set('hats', hatSprite);
+      }
+    } catch (e) {
+      console.error('[Player] Failed to render fallback layers:', e);
+    }
+
+    this.applyCustomColors();
+  }
+
+  /**
+   * Aplicar cores customizadas aos sprites
+   */
+  private applyCustomColors() {
+    // Aplicar bodyColor ao corpo
+    const bodySprite = this.layerSprites.get('bodies');
+    if (bodySprite && this.state.bodyColor && this.state.bodyColor.startsWith('#')) {
+      bodySprite.tint = parseInt(this.state.bodyColor.replace('#', '0x'));
+    }
+
+    // Aplicar eyeColor aos olhos
+    const eyeSprite = this.layerSprites.get('eyes');
+    if (eyeSprite && this.state.eyeColor && this.state.eyeColor.startsWith('#')) {
+      eyeSprite.tint = parseInt(this.state.eyeColor.replace('#', '0x'));
     }
   }
 

@@ -6,7 +6,8 @@ import dotenv from 'dotenv';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import fs from 'fs';
 import path from 'path';
-import { ItemRegistry, MonsterRegistry } from '@zyra/shared'; 
+import { ItemRegistry, MonsterRegistry } from '@zyra/shared';  
+import { VISUAL_CONFIGS } from '@zyra/shared/src/data/visualConfigs';
 import { pool } from './database/db';
 
 import { CombatRoom } from './rooms/CombatRoom';
@@ -183,6 +184,76 @@ app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<v
     } catch (err) {
         console.error('[Admin] Error saving item:', err);
         res.status(500).json({ error: 'Failed to save item' });
+    }
+});
+
+// ==================== VISUAL LAYER SYSTEM ====================
+
+/**
+ * Salvar configuração global de camadas visuais
+ */
+app.post('/api/admin/visual/save-global-layers', async (req: Request, res: Response): Promise<void> => {
+    const { layers } = req.body;
+    
+    if (!layers || !Array.isArray(layers)) {
+        res.status(400).json({ error: 'Invalid layers data' });
+        return;
+    }
+
+    try {
+        const configPath = path.join(__dirname, '../../shared/src/data/visualLayers.json');
+        
+        // Garantir que o diretório existe
+        const dir = path.dirname(configPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
+        const config = {
+            version: '2.0',
+            lastUpdated: new Date().toISOString(),
+            layers: layers.map((layer: any, index: number) => ({
+                zIndex: index,
+                type: layer.type,
+                asset: layer.asset,
+                offsetX: layer.offsetX || 0,
+                offsetY: layer.offsetY || 0,
+                scale: layer.scale || 1.0,
+                rotation: layer.rotation || 0,
+                width: layer.width || 58,
+                height: layer.height || 58
+            }))
+        };
+
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+        
+        console.info(`✅ [Admin] Configuração global de camadas salva: ${layers.length} camadas`);
+        res.json({ success: true, layersCount: layers.length });
+    } catch (err) {
+        console.error('[Admin] Error saving visual layers:', err);
+        res.status(500).json({ error: 'Failed to save configuration' });
+    }
+});
+
+/**
+ * Carregar configuração global de camadas
+ */
+app.get('/api/admin/visual/global-layers', (req: Request, res: Response): void => {
+    try {
+        const configPath = path.join(__dirname, '../../shared/src/data/visualLayers.json');
+        
+        if (!fs.existsSync(configPath)) {
+            res.json({ layers: [] });
+            return;
+        }
+
+        const data = fs.readFileSync(configPath, 'utf8');
+        const config = JSON.parse(data);
+        
+        res.json(config);
+    } catch (err) {
+        console.error('[Admin] Error loading visual layers:', err);
+        res.status(500).json({ error: 'Failed to load configuration' });
     }
 });
 
@@ -438,44 +509,110 @@ app.post('/api/admin/player/save-visual-detailed', async (req: Request, res: Res
     }
 });
 
-// ==================== AUTH ROUTES ====================
+// ==================== VISUAL CONFIGS API ====================
 
-app.post('/check-user', async (req: Request, res: Response): Promise<void> => {
-    const { username } = req.body;
+/**
+ * ✅ Retornar configs visuais para o client
+ */
+app.get('/api/visual/configs', (_req: Request, res: Response): void => {
     try {
-        const result = await pool.query('SELECT username, class_type, level FROM players WHERE username = $1', [username]);
-        if (result.rows.length > 0) {
-            res.json({ exists: true, user: result.rows[0] });
-        } else {
-            res.json({ exists: false });
-        }
+        res.json(VISUAL_CONFIGS);
     } catch (err) {
-        console.error('[Auth] Error checking user:', err);
-        res.status(500).json({ error: 'Database error' });
+        console.error('[Visual] Error loading configs:', err);
+        res.status(500).json({ error: 'Failed to load visual configs' });
     }
 });
 
+/**
+ * ✅ Buscar config específica
+ */
+app.get('/api/visual/config/:type/:targetId', (req: Request, res: Response): void => {
+    const { type, targetId } = req.params;
+    const key = `${type.toUpperCase()}_${targetId}`;
+    
+    const config = VISUAL_CONFIGS.configs[key];
+    
+    if (!config) {
+        res.status(404).json({ error: 'Config not found' });
+        return;
+    }
+    
+    res.json(config);
+});
+
+
+// ==================== AUTH ROUTES ====================
+
+/**
+ * ✅ CORRIGIDO: Endpoint de Login
+ */
 app.post("/api/login", async (req: Request, res: Response): Promise<void> => {
     const { username } = req.body;
+    
+    if (!username) {
+        res.status(400).json({ error: 'Username is required' });
+        return;
+    }
+
     try {
-        let accountRes = await pool.query("SELECT id, username FROM accounts WHERE username = $1", [username]);
+        // Verificar se a conta existe
+        let accountRes = await pool.query(
+            "SELECT id, username FROM accounts WHERE username = $1", 
+            [username]
+        );
+
+        // Se não existir, criar nova conta
         if (accountRes.rows.length === 0) {
-            accountRes = await pool.query("INSERT INTO accounts (username) VALUES ($1) RETURNING *", [username]);
+            accountRes = await pool.query(
+                "INSERT INTO accounts (username) VALUES ($1) RETURNING *", 
+                [username]
+            );
         }
+
         const account = accountRes.rows[0];
+
+        // Buscar personagens da conta
         const charRes = await pool.query(
             "SELECT id, char_name, class_type, level FROM characters WHERE account_id = $1",
             [account.id]
         );
+
         res.json({ 
             exists: charRes.rows.length > 0, 
             accountId: account.id,
             characters: charRes.rows 
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Auth] Login error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
+});
+
+/**
+ * ✅ Health Check Endpoint
+ */
+app.get('/health', (_req, res) => {
+    res.json({ 
+        status: 'ok', 
+        uptime: process.uptime(),
+        database: pool.totalCount > 0 ? 'connected' : 'connecting' 
+    });
+});
+
+/**
+ * ✅ Root Endpoint (para evitar "Cannot GET /")
+ */
+app.get('/', (_req, res) => {
+    res.json({
+        name: 'ZYRA Server',
+        version: '1.0.0',
+        endpoints: {
+            health: '/health',
+            login: '/api/login',
+            admin: '/admin',
+            dashboard: '/dashboard'
+        }
+    });
 });
 
 // ==================== GAME SERVER ====================

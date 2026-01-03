@@ -1,7 +1,8 @@
+// packages/client/src/scenes/WorldScene.ts
 import { Container, Graphics } from 'pixi.js';
 import type { Game } from '../game/Game';
 import type { NetworkManager } from '../game/NetworkManager';
-import { PlayerEntity } from '../entities/Player';
+import { Player } from '../entities/Player'; // ✅ CORRIGIDO: era PlayerEntity
 import { InputSystem } from '../systems/InputSystem';
 import type { PlayerState } from '@zyra/shared';
 
@@ -9,7 +10,7 @@ export class WorldScene extends Container {
   private network: NetworkManager;
   private inputSystem: InputSystem;
   
-  private players = new Map<string, PlayerEntity>();
+  private players = new Map<string, Player>(); // ✅ CORRIGIDO
   private mySessionId: string | null = null;
 
   private camera = { x: 0, y: 0 };
@@ -52,7 +53,7 @@ export class WorldScene extends Container {
     this.mySessionId = room.sessionId;
 
     room.state.players.onAdd((player: PlayerState, sessionId: string) => {
-      const playerEntity = new PlayerEntity(player, sessionId === this.mySessionId);
+      const playerEntity = new Player(player, sessionId === this.mySessionId); // ✅ CORRIGIDO
       this.players.set(sessionId, playerEntity);
       this.addChild(playerEntity);
     });

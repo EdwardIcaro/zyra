@@ -1,10 +1,13 @@
+// packages/client/src/ui/SkillTreeUI.ts
 import { Container, Graphics, Text } from 'pixi.js';
-import { ClassType } from '@zyra/shared';
+// ✅ CORRIGIDO: ClassType é um enum, não um tipo
+// Se quiser o tipo string, use: string
+// Se quiser o enum, use: import { ClassType } from '@zyra/shared';
 
 export class SkillTreeUI extends Container {
-  private classType: ClassType;
+  private classType: string; // ✅ CORRIGIDO: usar string ao invés do enum
 
-  constructor(classType: ClassType) {
+  constructor(classType: string) { // ✅ CORRIGIDO
     super();
     this.classType = classType;
     this.createTree();

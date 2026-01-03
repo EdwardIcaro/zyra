@@ -1,5 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js';
-import { EquipSlot, type InventoryState, type EquipmentState, type InventorySlot } from '@zyra/shared';
+import { EquipSlot } from '@zyra/shared'; // ✅ CORRIGIDO: importar o enum corretamente
+import type { InventoryState, EquipmentState, InventorySlot } from '@zyra/shared';
 
 export type SlotCallback = (index: number) => void;
 export type EquipmentCallback = (slotName: string) => void;

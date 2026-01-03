@@ -3,24 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZYRA Admin | Game Database</title>
+    <title>ZYRA Admin | Complete Dashboard</title>
     <script src="https://pixijs.download/release/pixi.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root { --bg: #0f0f0f; --card: #1a1a1a; --border: #333; --accent: #007bff; }
-        body { background: var(--bg); color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: var(--bg); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
         .navbar { background: var(--card); border-bottom: 1px solid var(--border); }
         .nav-tabs { border-bottom: 2px solid var(--border); }
         .nav-link { color: #888; border: none !important; margin-right: 10px; transition: 0.3s; }
         .nav-link:hover { color: #fff; }
         .nav-link.active { color: var(--accent) !important; background: transparent !important; border-bottom: 2px solid var(--accent) !important; font-weight: bold; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        .table { color: #e0e0e0; border-color: var(--border); }
-        .table-hover tbody tr:hover { background-color: rgba(255,255,255,0.05); cursor: pointer; }
-        .form-control, .form-select { background: #252525; border: 1px solid #444; color: #fff; }
-        .form-control:focus { background: #2a2a2a; color: #fff; border-color: var(--accent); box-shadow: none; }
-        label { font-size: 0.85rem; color: #aaa; margin-bottom: 5px; }
-        .btn-save { background: var(--accent); border: none; padding: 10px 20px; font-weight: bold; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+        .timeline { display: flex; gap: 10px; overflow-x: auto; padding: 15px; background: #252525; border-radius: 8px; min-height: 100px; }
+        .timeline-item { 
+            background: #333; 
+            border: 2px solid #555; 
+            border-radius: 8px; 
+            padding: 10px; 
+            min-width: 120px; 
+            cursor: move;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .timeline-item.active { border-color: var(--accent); background: #444; }
+        .preview-container { background: #222; border-radius: 8px; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 400px; }
     </style>
 </head>
 <body>
@@ -28,83 +37,59 @@
 <nav class="navbar navbar-dark mb-4">
     <div class="container-fluid">
         <span class="navbar-brand mb-0 h1">🛠️ ZYRA Admin Panel</span>
-        <div>
-            <button class="btn btn-outline-success btn-sm me-2" onclick="applyChanges()">🔄 Aplicar Mudanças no Jogo</button>
-            <span class="badge bg-success">DB Connected</span>
-        </div>
+        <button class="btn btn-success btn-sm" onclick="applyChanges()">🔄 Aplicar Mudanças</button>
     </div>
 </nav>
 
 <div class="container-fluid px-4">
-    <ul class="nav nav-tabs mb-4" id="adminTabs">
+    <ul class="nav nav-tabs mb-4">
         <li class="nav-item">
-            <button class="nav-link active" onclick="switchTab('items')">📦 Gerenciar Itens</button>
+            <button class="nav-link active" onclick="switchTab('items')">📦 Items</button>
         </li>
         <li class="nav-item">
-            <button class="nav-link" onclick="switchTab('monsters')">👾 Gerenciar Monstros</button>
+            <button class="nav-link" onclick="switchTab('monsters')">👾 Monstros</button>
         </li>
         <li class="nav-item">
-            <button class="nav-link" onclick="switchTab('visual')">🎨 Ajuste Visual</button>
+            <button class="nav-link" onclick="switchTab('visual')">🎨 Visual System</button>
         </li>
     </ul>
 
-    <!-- ITEMS SECTION -->
+    <!-- ==================== ITEMS TAB ==================== -->
     <div id="itemsSection">
         <div class="row">
             <div class="col-md-4">
                 <div class="card p-4">
-                    <h5 class="mb-3 text-primary">Editor de Item</h5>
+                    <h5 class="text-primary mb-3">Editor de Item</h5>
                     <form id="itemForm">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label>ID do Item (Unique Key)</label>
-                                <input type="text" id="i_id" class="form-control" required>
-                            </div>
-                            <div class="col-12">
-                                <label>Nome Visual</label>
-                                <input type="text" id="i_name" class="form-control" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label>Tipo</label>
-                                <select id="i_type" class="form-select">
-                                    <option value="material">Material</option>
-                                    <option value="weapon">Weapon</option>
-                                    <option value="armor">Armor</option>
-                                    <option value="consumable">Consumable</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label>Grade</label>
-                                <select id="i_grade" class="form-select">
-                                    <option value="">Nenhuma</option>
-                                    <option value="C">C</option>
-                                    <option value="B">B</option>
-                                    <option value="A">A</option>
-                                    <option value="S">S</option>
-                                </select>
-                            </div>
-                            <div class="col-12">
-                                <label>Descrição</label>
-                                <textarea id="i_desc" class="form-control" rows="3"></textarea>
-                            </div>
-                            <div class="col-12 mt-4">
-                                <button type="submit" class="btn btn-save w-100">Salvar Item</button>
-                            </div>
-                        </div>
+                        <label>ID do Item</label>
+                        <input type="text" id="i_id" class="form-control mb-2" required>
+                        <label>Nome</label>
+                        <input type="text" id="i_name" class="form-control mb-2" required>
+                        <label>Tipo</label>
+                        <select id="i_type" class="form-select mb-2">
+                            <option value="material">Material</option>
+                            <option value="weapon">Weapon</option>
+                            <option value="armor">Armor</option>
+                        </select>
+                        <label>Grade</label>
+                        <select id="i_grade" class="form-select mb-2">
+                            <option value="">Nenhuma</option>
+                            <option value="C">C</option>
+                            <option value="B">B</option>
+                            <option value="A">A</option>
+                            <option value="S">S</option>
+                        </select>
+                        <label>Descrição</label>
+                        <textarea id="i_desc" class="form-control mb-3" rows="3"></textarea>
+                        <button type="submit" class="btn btn-primary w-100">Salvar Item</button>
                     </form>
                 </div>
             </div>
             <div class="col-md-8">
-                <div class="card p-0 overflow-hidden">
+                <div class="card p-0">
                     <table class="table table-hover mb-0">
                         <thead class="table-dark">
-                            <tr>
-                                <th>ID</th>
-                                <th>Nome</th>
-                                <th>Tipo</th>
-                                <th>Grade</th>
-                                <th>Ações</th>
-                            </tr>
+                            <tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Grade</th></tr>
                         </thead>
                         <tbody id="itemsTableBody"></tbody>
                     </table>
@@ -113,56 +98,34 @@
         </div>
     </div>
 
-    <!-- MONSTERS SECTION -->
+    <!-- ==================== MONSTERS TAB ==================== -->
     <div id="monstersSection" style="display: none;">
         <div class="row">
             <div class="col-md-4">
                 <div class="card p-4">
-                    <h5 class="mb-3 text-warning">Editor de Monstro</h5>
+                    <h5 class="text-warning mb-3">Editor de Monstro</h5>
                     <form id="monsterForm">
-                        <div class="row g-3">
-                            <div class="col-md-8">
-                                <label>ID do Monstro</label>
-                                <input type="text" id="m_id" class="form-control" required>
-                            </div>
-                            <div class="col-md-4">
-                                <label>Nível</label>
-                                <input type="number" id="m_level" class="form-control" value="1">
-                            </div>
-                            <div class="col-12">
-                                <label>Nome</label>
-                                <input type="text" id="m_name" class="form-control" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label>HP Máximo</label>
-                                <input type="number" id="m_hp" class="form-control" value="50">
-                            </div>
-                            <div class="col-md-6">
-                                <label>Dano</label>
-                                <input type="number" id="m_damage" class="form-control" value="5">
-                            </div>
-                            <div class="col-md-12">
-                                <label>Exp Base</label>
-                                <input type="number" id="m_exp" class="form-control" value="10">
-                            </div>
-                            <div class="col-12 mt-4">
-                                <button type="submit" class="btn btn-warning w-100 fw-bold">Salvar Monstro</button>
-                            </div>
-                        </div>
+                        <label>ID</label>
+                        <input type="text" id="m_id" class="form-control mb-2" required>
+                        <label>Nome</label>
+                        <input type="text" id="m_name" class="form-control mb-2" required>
+                        <label>Nível</label>
+                        <input type="number" id="m_level" class="form-control mb-2" value="1">
+                        <label>HP</label>
+                        <input type="number" id="m_hp" class="form-control mb-2" value="50">
+                        <label>Dano</label>
+                        <input type="number" id="m_damage" class="form-control mb-2" value="5">
+                        <label>Exp Base</label>
+                        <input type="number" id="m_exp" class="form-control mb-3" value="10">
+                        <button type="submit" class="btn btn-warning w-100">Salvar Monstro</button>
                     </form>
                 </div>
             </div>
             <div class="col-md-8">
-                <div class="card p-0 overflow-hidden">
+                <div class="card p-0">
                     <table class="table table-hover mb-0">
                         <thead class="table-dark">
-                            <tr>
-                                <th>ID</th>
-                                <th>Nome</th>
-                                <th>Nível</th>
-                                <th>HP</th>
-                                <th>Ações</th>
-                            </tr>
+                            <tr><th>ID</th><th>Nome</th><th>Nível</th><th>HP</th><th>Ações</th></tr>
                         </thead>
                         <tbody id="monstersTableBody"></tbody>
                     </table>
@@ -170,163 +133,90 @@
             </div>
         </div>
     </div>
-    
 
-    <!-- VISUAL SECTION -->
+    <!-- ==================== VISUAL SYSTEM TAB ==================== -->
     <div id="visualSection" style="display: none;">
         <div class="row">
             <div class="col-md-4">
-                <div class="card p-4">
-                    <h5 class="mb-3 text-info">Configurador de Sprite</h5>
-
-                    <label>Selecionar Personagem</label>
-                    <select id="v_character_select" class="form-select mb-3" onchange="loadCharacterVisuals()">
-                        <option value="">Carregando...</option>
-                    </select>
-
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="v_apply_to_all">
-                        <label class="form-check-label" for="v_apply_to_all">
-                            Aplicar para TODOS os personagens
-                        </label>
-                    </div>                   
-                    <!-- MODO DE CONFIGURAÇÃO -->
-                    <label>Modo de Configuração</label>
-                    <select id="v_config_mode" class="form-select mb-3" onchange="toggleConfigMode()">
-                        <option value="item">Vincular a Item Específico</option>
-                        <option value="global">Configuração Global (Sem Item)</option>
-                    </select>
-
-                    <!-- VINCULAR A ITEM (Modo Item) -->
-                    <div id="itemLinkSection">
-                        <label>3. Vincular ao Item do Jogo</label>
-                        <select id="v_item_link" class="form-select mb-4"></select>
-                    </div>
-
-                    <!-- TIPO DE CORPO (Modo Global) -->
-                    <div id="bodyTypeSection" style="display: none;">
-                        <label>Tipo de Corpo Base</label>
-                        <select id="v_body_type" class="form-select mb-3">
-                            <option value="ball_red">Ball Red (Padrão)</option>
-                            <option value="ball_blue">Ball Blue</option>
-                            <option value="ball_green">Ball Green</option>
-                        </select>
-                    </div>
-
-                    <hr>
-
-                    <label>1. Tipo de Camada</label>
-                    <select id="v_layer_type" class="form-select mb-3" onchange="loadAssetFolder()">
+                <div class="card p-4 mb-3">
+                    <h5 class="text-info mb-3">📦 Adicionar Camada</h5>
+                    <label>Tipo</label>
+                    <select id="layerTypeSelect" class="form-select mb-2" onchange="loadAssetsForLayer()">
                         <option value="">Selecione...</option>
-                        <option value="bodies">Corpos (Bodies)</option>
-                        <option value="faces">Rostos (Faces)</option>
-                        <option value="hats">Chapéus (Hats)</option>
+                        <option value="bodies">Corpos</option>
+                        <option value="faces">Olhos</option>
+                        <option value="hats">Chapéus</option>
                     </select>
+                    <label>Asset</label>
+                    <select id="assetSelect" class="form-select mb-3" disabled></select>
+                    <button class="btn btn-primary w-100" onclick="addLayerToTimeline()">➕ Adicionar</button>
+                </div>
 
-                    <label>2. Selecionar Asset (Arquivo)</label>
-                    <select id="v_asset_select" class="form-select mb-3" onchange="updateVisualPreview()"></select>
-                    
-                    <hr>
-                    
-                    <label>Posição X (Horizontal): <span id="val_x">0</span></label>
-                    <input type="range" class="form-range" id="range_x" min="-100" max="100" step="1" value="0" oninput="syncVisual()">
-
-                    <label>Posição Y (Vertical): <span id="val_y">-20</span></label>
-                    <input type="range" class="form-range" id="range_y" min="-100" max="100" step="1" value="-20" oninput="syncVisual()">
-
-                    <label>Escala (Tamanho): <span id="val_scale">1.0</span></label>
-                    <input type="range" class="form-range" id="range_scale" min="0.01" max="10.0" step="0.01" value="1.0" oninput="syncVisual()">
-
-                    <label>Rotação (Graus): <span id="val_rotation">0</span></label>
-                    <input type="range" class="form-range" id="range_rotation" min="-180" max="180" step="5" value="0" oninput="syncVisual()">
-
-                    <button class="btn btn-primary w-100 mt-4" onclick="saveVisualSettings()">💾 Salvar Configuração</button>
-                    <button class="btn btn-danger w-100 mt-2" onclick="resetVisuals()">🔄 Resetar Visuais</button>
+                <div class="card p-4">
+                    <h5 class="text-warning mb-3">⚙️ Ajustes da Camada</h5>
+                    <div id="layerControls">
+                        <p class="text-muted">Selecione uma camada</p>
+                    </div>
                 </div>
             </div>
+
             <div class="col-md-8">
-                <div class="card p-0 d-flex align-items-center justify-content-center" style="height: 500px; background: #222;">
-                    <div id="pixi-preview"></div>
-                    <p class="text-muted mt-2 small">Preview em tempo real (Com animação de respiração)</p>
+                <div class="card p-3 mb-3">
+                    <h5>🎬 Timeline de Camadas</h5>
+                    <div id="timeline" class="timeline">
+                        <div class="text-muted" style="margin: auto;">Arraste assets aqui</div>
+                    </div>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- MODAL DE DROPS -->
-<div class="modal fade" id="dropModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark text-white border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title">Configurar Loot: <span id="lootMonsterName" class="text-warning"></span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="dropForm" class="row g-2 mb-4 p-3 border border-secondary rounded">
-                    <input type="hidden" id="d_monster_id">
-                    <div class="col-md-5">
-                        <label>Item</label>
-                        <select id="d_item_id" class="form-select" required></select>
+                <div class="card p-0">
+                    <div class="preview-container">
+                        <div id="pixi-preview"></div>
                     </div>
-                    <div class="col-md-2">
-                        <label>Chance (0-1)</label>
-                        <input type="number" id="d_chance" class="form-control" step="0.01" min="0" max="1" value="0.5">
-                    </div>
-                    <div class="col-md-2">
-                        <label>Min</label>
-                        <input type="number" id="d_min" class="form-control" value="1">
-                    </div>
-                    <div class="col-md-2">
-                        <label>Max</label>
-                        <input type="number" id="d_max" class="form-control" value="1">
-                    </div>
-                    <div class="col-md-1 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">+</button>
-                    </div>
-                </form>
-                <table class="table table-dark table-sm">
-                    <thead>
-                        <tr>
-                            <th>Item</th>
-                            <th>Chance</th>
-                            <th>Qtd</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dropTableBody"></tbody>
-                </table>
+                </div>
+                
+                <div class="text-center mt-3">
+                    <button class="btn btn-success" onclick="saveGlobalConfig()">💾 Salvar Config Global</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
 <script>
-// ============================================
-// CONFIGURAÇÃO GLOBAL
-// ============================================
-const CLIENT_URL = "http://localhost:3000";
 const API_URL = "http://localhost:2567";
+const CLIENT_URL = "http://localhost:3000";
 
-let visualApp = null;
-let previewBody, previewHat, previewFace, previewHighlight;
+let pixiApp = null;
+let previewContainer = null;
+let layers = [];
+let selectedLayerIndex = -1;
+let layerSprites = new Map();
 
 // ============================================
-// ITEMS
+// TAB SWITCHING
+// ============================================
+function switchTab(tab) {
+    document.querySelectorAll('[id$="Section"]').forEach(s => s.style.display = 'none');
+    document.getElementById(tab + 'Section').style.display = 'block';
+    
+    document.querySelectorAll('.nav-link').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+
+    if (tab === 'items') loadItems();
+    if (tab === 'monsters') loadMonsters();
+    if (tab === 'visual') initPixi();
+}
+
+// ============================================
+// ITEMS LOGIC
 // ============================================
 async function loadItems() {
     const res = await fetch(`${API_URL}/api/admin/items`);
     const data = await res.json();
-    const body = document.getElementById('itemsTableBody');
-    body.innerHTML = data.map(i => `
+    document.getElementById('itemsTableBody').innerHTML = data.map(i => `
         <tr onclick="editItem('${i.id}')">
-            <td class="text-info">${i.id}</td>
-            <td>${i.name}</td>
-            <td><span class="badge bg-secondary">${i.type}</span></td>
-            <td><span class="text-warning fw-bold">${i.grade || '-'}</span></td>
-            <td><button class="btn btn-sm btn-outline-primary">Editar</button></td>
+            <td>${i.id}</td><td>${i.name}</td><td>${i.type}</td><td>${i.grade || '-'}</td>
         </tr>
     `).join('');
     window.cachedItems = data;
@@ -334,19 +224,17 @@ async function loadItems() {
 
 document.getElementById('itemForm').onsubmit = async (e) => {
     e.preventDefault();
-    const item = {
-        id: document.getElementById('i_id').value,
-        name: document.getElementById('i_name').value,
-        description: document.getElementById('i_desc').value,
-        type: document.getElementById('i_type').value,
-        grade: document.getElementById('i_grade').value,
-        stackable: document.getElementById('i_type').value === 'material'
-    };
-
     await fetch(`${API_URL}/api/admin/items/save`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(item)
+        body: JSON.stringify({
+            id: document.getElementById('i_id').value,
+            name: document.getElementById('i_name').value,
+            description: document.getElementById('i_desc').value,
+            type: document.getElementById('i_type').value,
+            grade: document.getElementById('i_grade').value,
+            stackable: document.getElementById('i_type').value === 'material'
+        })
     });
     alert('Item salvo!');
     loadItems();
@@ -363,22 +251,15 @@ function editItem(id) {
 }
 
 // ============================================
-// MONSTERS
+// MONSTERS LOGIC
 // ============================================
 async function loadMonsters() {
     const res = await fetch(`${API_URL}/api/admin/monsters`);
     const data = await res.json();
-    const body = document.getElementById('monstersTableBody');
-    body.innerHTML = data.map(m => `
-        <tr>
-            <td class="text-warning" onclick="editMonster('${m.id}')">${m.id}</td>
-            <td onclick="editMonster('${m.id}')">${m.name}</td>
-            <td>Lv. ${m.level}</td>
-            <td>${m.stats?.maxHp || 50} HP</td>
-            <td>
-                <button class="btn btn-sm btn-outline-warning" onclick="editMonster('${m.id}')">Editar</button>
-                <button class="btn btn-sm btn-outline-info" onclick="openDropModal('${m.id}', '${m.name}')">💎 Drops</button>
-            </td>
+    document.getElementById('monstersTableBody').innerHTML = data.map(m => `
+        <tr onclick="editMonster('${m.id}')">
+            <td>${m.id}</td><td>${m.name}</td><td>${m.level}</td><td>${m.stats?.maxHp || 50}</td>
+            <td><button class="btn btn-sm btn-warning">Editar</button></td>
         </tr>
     `).join('');
     window.cachedMonsters = data;
@@ -386,24 +267,19 @@ async function loadMonsters() {
 
 document.getElementById('monsterForm').onsubmit = async (e) => {
     e.preventDefault();
-    const monster = {
-        id: document.getElementById('m_id').value,
-        name: document.getElementById('m_name').value,
-        level: parseInt(document.getElementById('m_level').value),
-        stats: { 
-            maxHp: parseInt(document.getElementById('m_hp').value),
-            damage: parseInt(document.getElementById('m_damage').value),
-            speed: 1
-        },
-        rewards: {
-            baseExp: parseInt(document.getElementById('m_exp').value)
-        }
-    };
-
     await fetch(`${API_URL}/api/admin/monsters/save`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(monster)
+        body: JSON.stringify({
+            id: document.getElementById('m_id').value,
+            name: document.getElementById('m_name').value,
+            level: parseInt(document.getElementById('m_level').value),
+            stats: { 
+                maxHp: parseInt(document.getElementById('m_hp').value),
+                damage: parseInt(document.getElementById('m_damage').value)
+            },
+            rewards: { baseExp: parseInt(document.getElementById('m_exp').value) }
+        })
     });
     alert('Monstro salvo!');
     loadMonsters();
@@ -420,463 +296,207 @@ function editMonster(id) {
     document.getElementById('m_exp').value = m.rewards?.baseExp || 10;
 }
 
-// ============================================
-// DROPS MODAL
-// ============================================
-const dropModal = new bootstrap.Modal(document.getElementById('dropModal'));
-
-async function openDropModal(monsterId, monsterName) {
-    document.getElementById('lootMonsterName').innerText = monsterName;
-    document.getElementById('d_monster_id').value = monsterId;
-    
-    const itemSelect = document.getElementById('d_item_id');
-    if (!window.cachedItems) await loadItems();
-    itemSelect.innerHTML = window.cachedItems.map(i => 
-        `<option value="${i.id}">${i.name} (${i.id})</option>`
-    ).join('');
-    
-    loadMonsterDrops(monsterId);
-    dropModal.show();
-}
-
-async function loadMonsterDrops(monsterId) {
-    const res = await fetch(`${API_URL}/api/admin/monsters/${monsterId}/drops`);
-    const drops = await res.json();
-    const tbody = document.getElementById('dropTableBody');
-    tbody.innerHTML = drops.map(d => `
-        <tr>
-            <td>${d.item_name}</td>
-            <td>${(parseFloat(d.chance) * 100).toFixed(1)}%</td>
-            <td>${d.min_quantity}-${d.max_quantity}</td>
-            <td>
-                <button class="btn btn-sm btn-danger" onclick="deleteDrop(${d.id}, '${monsterId}')">🗑️</button>
-            </td>
-        </tr>
-    `).join('');
-}
-
-document.getElementById('dropForm').onsubmit = async (e) => {
-    e.preventDefault();
-    const monsterId = document.getElementById('d_monster_id').value;
-    const dropData = {
-        monster_id: monsterId,
-        item_id: document.getElementById('d_item_id').value,
-        chance: parseFloat(document.getElementById('d_chance').value),
-        min_quantity: parseInt(document.getElementById('d_min').value),
-        max_quantity: parseInt(document.getElementById('d_max').value)
-    };
-
-    await fetch(`${API_URL}/api/admin/drops/save`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(dropData)
-    });
-    loadMonsterDrops(monsterId);
-};
-
-async function deleteDrop(id, monsterId) {
-    if(!confirm('Remover este drop?')) return;
-    await fetch(`${API_URL}/api/admin/drops/${id}`, { method: 'DELETE' });
-    loadMonsterDrops(monsterId);
-}
-
-// ============================================
-// HOT RELOAD
-// ============================================
 async function applyChanges() {
     const res = await fetch(`${API_URL}/api/admin/reload`, { method: 'POST' });
     if(res.ok) alert('🚀 Servidor sincronizado!');
 }
 
 // ============================================
-// VISUAL EDITOR - INICIALIZAÇÃO
+// VISUAL SYSTEM LOGIC
 // ============================================
-async function initVisualEditor() {
-    if (visualApp) return;
+async function initPixi() {
+    if (pixiApp) return;
 
-    const app = new PIXI.Application();
-    await app.init({ 
-        width: 300, 
-        height: 300, 
-        backgroundColor: 0x222222 
-    });
+    pixiApp = new PIXI.Application();
+    await pixiApp.init({ width: 300, height: 300, backgroundColor: 0x222222 });
     
-    visualApp = app;
     document.getElementById('pixi-preview').innerHTML = '';
-    document.getElementById('pixi-preview').appendChild(visualApp.canvas);
+    document.getElementById('pixi-preview').appendChild(pixiApp.canvas);
 
-    const container = new PIXI.Container();
-    container.x = 150;
-    container.y = 150;
-    visualApp.stage.addChild(container);
+    previewContainer = new PIXI.Container();
+    previewContainer.x = 150;
+    previewContainer.y = 150;
+    pixiApp.stage.addChild(previewContainer);
 
-    previewHighlight = new PIXI.Graphics();
-    previewHighlight.circle(0, 0, 26);
-    previewHighlight.stroke({ width: 2, color: 0xffff00 });
-    container.addChild(previewHighlight);
+    const highlight = new PIXI.Graphics();
+    highlight.circle(0, 0, 30);
+    highlight.stroke({ width: 2, color: 0xffff00, alpha: 0.5 });
+    previewContainer.addChild(highlight);
 
-    previewBody = new PIXI.Sprite();
-    previewBody.anchor.set(0.5);
-    container.addChild(previewBody);
-
-    previewFace = new PIXI.Sprite();
-    previewFace.anchor.set(0.5);
-    container.addChild(previewFace);
-
-    previewHat = new PIXI.Sprite();
-    previewHat.anchor.set(0.5);
-    container.addChild(previewHat);
-
-    try {
-        const bodyTexture = await PIXI.Assets.load(`${CLIENT_URL}/assets/sprites/bodies/ball_red.png`);
-        previewBody.texture = bodyTexture;
-        previewBody.width = 58;
-        previewBody.height = 58;
-    } catch (e) {
-        console.error("Erro ao carregar corpo base:", e);
-    }
-
-    visualApp.ticker.add(() => {
+    pixiApp.ticker.add(() => {
         const bounce = Math.sin(Date.now() / 200) * 0.04;
-        
-        if (previewBody && previewBody.texture && previewBody.texture.valid) {
-            previewBody.scale.y = (58 / previewBody.texture.height) * (1 + bounce);
-        }
-        
-        if (previewHighlight) {
-            previewHighlight.scale.set(1 + bounce);
-        }
-        
-        if (previewHat && previewHat.texture && previewHat.texture.valid) {
-            const baseScale = parseFloat(document.getElementById('range_scale')?.value || 1.0);
-            previewHat.scale.set(baseScale * (1 + bounce));
-        }
+        previewContainer.scale.set(1 + bounce);
     });
 }
 
-let loadedCharacters = [];
-
-// Função para carregar lista de personagens
-async function loadCharacterList() {
-    try {
-        const res = await fetch(`${API_URL}/api/admin/characters`);
-        const characters = await res.json();
-        loadedCharacters = characters;
-        
-        const select = document.getElementById('v_character_select');
-        if (select) {
-            select.innerHTML = '<option value="">Selecione um personagem</option>';
-            characters.forEach(char => {
-                select.innerHTML += `<option value="${char.char_name}">${char.char_name} (Lv.${char.level} ${char.class_type})</option>`;
-            });
-        }
-    } catch (e) {
-        console.error('Erro ao carregar personagens:', e);
-    }
-}
-
-// Função para carregar visuais do personagem selecionado
-async function loadCharacterVisuals() {
-    const charName = document.getElementById('v_character_select')?.value;
-    if (!charName) return;
-
-    try {
-        const res = await fetch(`${API_URL}/api/admin/characters/${charName}/visuals`);
-        const data = await res.json();
-        
-        // Aplicar valores nos sliders
-        if (data.face_offset_x !== undefined) {
-            document.getElementById('range_x').value = data.face_offset_x;
-            document.getElementById('val_x').innerText = data.face_offset_x;
-        }
-        
-        if (data.face_offset_y !== undefined) {
-            document.getElementById('range_y').value = data.face_offset_y;
-            document.getElementById('val_y').innerText = data.face_offset_y;
-        }
-        
-        if (data.face_scale !== undefined) {
-            document.getElementById('range_scale').value = data.face_scale;
-            document.getElementById('val_scale').innerText = parseFloat(data.face_scale).toFixed(2);
-        }
-        
-        if (data.face_rotation !== undefined) {
-            document.getElementById('range_rotation').value = data.face_rotation;
-            document.getElementById('val_rotation').innerText = data.face_rotation;
-        }
-        
-        console.log('Visuais carregados:', data);
-    } catch (e) {
-        console.error('Erro ao carregar visuais:', e);
-    }
-}
-
-async function resetVisuals() {
-    const charName = document.getElementById('v_character_select')?.value;
-    const applyToAll = confirm('⚠️ ATENÇÃO!\n\nDeseja resetar os visuais de:\n\n' + 
-        (charName ? `Apenas "${charName}"` : 'TODOS os personagens') + '?\n\n' +
-        'Esta ação NÃO pode ser desfeita!');
+async function loadAssetsForLayer() {
+    const type = document.getElementById('layerTypeSelect').value;
+    const select = document.getElementById('assetSelect');
     
-    if (!applyToAll) return;
-    
-    const doubleCheck = prompt('Digite "CONFIRMAR" para resetar:');
-    if (doubleCheck !== 'CONFIRMAR') {
-        alert('Cancelado.');
+    if (!type) {
+        select.disabled = true;
         return;
     }
-
-    try {
-        const res = await fetch(`${API_URL}/api/admin/player/reset-visuals`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ charName: charName || 'ALL' })
-        });
-        
-        if (res.ok) {
-            alert('✅ Visuais resetados! Relogue para ver mudanças.');
-            loadCharacterVisuals();
-        } else {
-            alert('❌ Erro ao resetar');
-        }
-    } catch (e) {
-        console.error(e);
-        alert('❌ Erro');
-    }
-}
-
-// ============================================
-// TAB SWITCHING
-// ============================================
-async function switchTab(tab) {
-    const sections = ['itemsSection', 'monstersSection', 'visualSection'];
-    sections.forEach(s => {
-        const el = document.getElementById(s);
-        if (el) el.style.display = 'none';
-    });
-
-    const target = document.getElementById(tab + 'Section');
-    if (target) target.style.display = 'block';
-
-    document.querySelectorAll('.nav-link').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-
-    if (tab === 'items') loadItems();
-    if (tab === 'monsters') loadMonsters();
-    
-    if (tab === 'visual') {
-        await initVisualEditor();
-        await loadCharacterList();
-        
-        const itemLink = document.getElementById('v_item_link');
-        if (itemLink && window.cachedItems) {
-            itemLink.innerHTML = window.cachedItems.map(i => 
-                `<option value="${i.id}">${i.name} (${i.id})</option>`
-            ).join('');
-        }
-    }
-}
-
-// ============================================
-// VISUAL - MODO DE CONFIGURAÇÃO
-// ============================================
-function toggleConfigMode() {
-    const mode = document.getElementById('v_config_mode').value;
-    const itemSection = document.getElementById('itemLinkSection');
-    const bodySection = document.getElementById('bodyTypeSection');
-    
-    if (mode === 'item') {
-        itemSection.style.display = 'block';
-        bodySection.style.display = 'none';
-    } else {
-        itemSection.style.display = 'none';
-        bodySection.style.display = 'block';
-    }
-}
-
-// ============================================
-// VISUAL - CARREGAR ASSETS
-// ============================================
-async function loadAssetFolder() {
-    const type = document.getElementById('v_layer_type').value;
-    if (!type) return;
 
     try {
         const res = await fetch(`${API_URL}/api/admin/assets/${type}`);
-        if (!res.ok) throw new Error('Falha ao buscar assets');
-        
-        const assets = await res.json();
-        const select = document.getElementById('v_asset_select');
-        
-        if (select) {
-            select.innerHTML = assets.map(a => `<option value="${a}">${a}</option>`).join('');
-            updateVisualPreview();
-        }
-    } catch (err) {
-        console.error("Erro ao carregar assets:", err);
-    }
-}
-
-// ============================================
-// VISUAL - ATUALIZAR PREVIEW
-// ============================================
-async function updateVisualPreview() {
-    const type = document.getElementById('v_layer_type')?.value;
-    const file = document.getElementById('v_asset_select')?.value;
-    
-    if (!type || !file || !visualApp) return;
-
-    const fullPath = `${CLIENT_URL}/assets/sprites/${type}/${file}`;
-    
-    try {
-        const texture = await PIXI.Assets.load(fullPath);
-
-        if (type === 'hats' && previewHat) {
-            previewHat.texture = texture;
-            previewHat.visible = true;
-        } else if (type === 'faces' && previewFace) {
-            previewFace.texture = texture;
-            previewFace.visible = true;
-        } else if (type === 'bodies' && previewBody) {
-            previewBody.texture = texture;
-            previewBody.width = 58;
-            previewBody.height = 58;
-        }
-        
-        syncVisual();
+        const files = await res.json();
+        select.innerHTML = files.map(f => `<option value="${f.replace('.png', '')}">${f}</option>`).join('');
+        select.disabled = false;
     } catch (e) {
-        console.error("Erro ao carregar asset:", e);
+        console.error(e);
     }
 }
 
-// ============================================
-// VISUAL - SINCRONIZAR SLIDERS
-// ============================================
-function syncVisual() {
-    const xInput = document.getElementById('range_x');
-    const yInput = document.getElementById('range_y');
-    const scaleInput = document.getElementById('range_scale');
-    const rotationInput = document.getElementById('range_rotation');
+function addLayerToTimeline() {
+    const type = document.getElementById('layerTypeSelect').value;
+    const asset = document.getElementById('assetSelect').value;
     
-    if (!xInput || !yInput || !scaleInput || !rotationInput) return;
-    
-    const x = parseInt(xInput.value);
-    const y = parseInt(yInput.value);
-    const scale = parseFloat(scaleInput.value);
-    const rotation = parseInt(rotationInput.value);
-
-    document.getElementById('val_x').innerText = x;
-    document.getElementById('val_y').innerText = y;
-    document.getElementById('val_scale').innerText = scale.toFixed(2);
-    document.getElementById('val_rotation').innerText = rotation;
-
-    if (previewHat) {
-        previewHat.x = x;
-        previewHat.y = y;
-        previewHat.scale.set(scale);
-        previewHat.rotation = (rotation * Math.PI) / 180;
-    }
-    
-    if (previewFace) {
-        previewFace.x = x;
-        previewFace.y = y;
-        previewFace.scale.set(scale);
-        previewFace.rotation = (rotation * Math.PI) / 180;
-    }
-}
-
-// ============================================
-// VISUAL - SALVAR CONFIGURAÇÕES
-// ============================================
-async function saveVisualSettings() {
-    const applyToAll = document.getElementById('v_apply_to_all')?.checked;
-    const charName = document.getElementById('v_character_select')?.value;
-
-    if (!applyToAll && !charName) {
-        alert('Selecione um personagem ou marque "Aplicar para todos"!');
+    if (!type || !asset) {
+        alert('Selecione tipo e asset!');
         return;
     }
 
-    const mode = document.getElementById('v_config_mode')?.value;
-    const layerType = document.getElementById('v_layer_type')?.value;
-    const assetFile = document.getElementById('v_asset_select')?.value;
-    const xOffset = parseInt(document.getElementById('range_x')?.value || 0);
-    const yOffset = parseInt(document.getElementById('range_y')?.value || 0);
-    const scale = parseFloat(document.getElementById('range_scale')?.value || 1.0);
-    const rotation = parseInt(document.getElementById('range_rotation')?.value || 0);
-
-    if (!layerType || !assetFile) {
-    alert('Preencha tipo de camada e arquivo!');
-    return;
-    }
-    
-    
-    // Determinar qual campo atualizar
-    let visualField = '';
-    let offsetXField = '';
-    let offsetYField = '';
-    let scaleField = '';
-    let rotationField = '';
-
-    if (layerType === 'faces') {
-        visualField = 'visual_face';
-        offsetXField = 'face_offset_x';
-        offsetYField = 'face_offset_y';
-        scaleField = 'face_scale';
-        rotationField = 'face_rotation';
-        widthField = 'face_width';
-        heightField = 'face_height';
-    } else if (layerType === 'hats') {
-        visualField = 'visual_hat';
-        offsetXField = 'hat_offset_x';
-        offsetYField = 'hat_offset_y';
-        scaleField = 'hat_scale';
-        rotationField = 'hat_rotation';
-        widthField = 'hat_width';
-        heightField = 'hat_height';
-    } else if (layerType === 'bodies') {
-        visualField = 'visual_body';
-    }
-
-    const data = {
-        charName: applyToAll ? 'ALL' : charName,
-        visualField,
-        assetFile,
-        offsetXField,
-        offsetXValue: xOffset,
-        offsetYField,
-        offsetYValue: yOffset,
-        scaleField,
-        scaleValue: scale,
-        rotationField,
-        rotationValue: rotation
+    const defaults = {
+        bodies: { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0, width: 58, height: 58 },
+        faces: { offsetX: 0, offsetY: 5, scale: 1.0, rotation: 0, width: 35, height: 18 },
+        hats: { offsetX: 0, offsetY: -20, scale: 1.0, rotation: 0, width: 60, height: 45 }
     };
 
+    layers.push({
+        type,
+        asset,
+        ...defaults[type],
+        zIndex: layers.length
+    });
+
+    renderTimeline();
+    renderPreview();
+}
+
+function renderTimeline() {
+    const timeline = document.getElementById('timeline');
+    
+    if (layers.length === 0) {
+        timeline.innerHTML = '<div class="text-muted" style="margin: auto;">Arraste assets aqui</div>';
+        return;
+    }
+
+    timeline.innerHTML = layers.map((layer, idx) => `
+        <div class="timeline-item ${idx === selectedLayerIndex ? 'active' : ''}" 
+             onclick="selectLayer(${idx})">
+            <div>${layer.asset}</div>
+            <button class="btn btn-sm btn-danger" onclick="removeLayer(${idx}); event.stopPropagation();">🗑️</button>
+        </div>
+    `).join('');
+}
+
+function selectLayer(index) {
+    selectedLayerIndex = index;
+    renderTimeline();
+    showLayerControls(layers[index]);
+}
+
+function removeLayer(index) {
+    layers.splice(index, 1);
+    selectedLayerIndex = -1;
+    renderTimeline();
+    renderPreview();
+    document.getElementById('layerControls').innerHTML = '<p class="text-muted">Selecione uma camada</p>';
+}
+
+function showLayerControls(layer) {
+    const controls = document.getElementById('layerControls');
+    
+    controls.innerHTML = `
+        <strong>${layer.asset}</strong>
+
+        <label>Offset X: <span id="val_offsetX">${layer.offsetX}</span></label>
+        <input type="range" class="form-range" id="range_offsetX" min="-100" max="100" value="${layer.offsetX}" oninput="updateLayerProp('offsetX', this.value)">
+
+        <label>Offset Y: <span id="val_offsetY">${layer.offsetY}</span></label>
+        <input type="range" class="form-range" id="range_offsetY" min="-100" max="100" value="${layer.offsetY}" oninput="updateLayerProp('offsetY', this.value)">
+
+        <label>Escala: <span id="val_scale">${layer.scale.toFixed(2)}</span></label>
+        <input type="range" class="form-range" id="range_scale" min="0.1" max="3.0" step="0.05" value="${layer.scale}" oninput="updateLayerProp('scale', this.value)">
+
+        <label>Rotação: <span id="val_rotation">${layer.rotation}°</span></label>
+        <input type="range" class="form-range" id="range_rotation" min="-180" max="180" step="5" value="${layer.rotation}" oninput="updateLayerProp('rotation', this.value)">
+    `;
+}
+
+function updateLayerProp(prop, value) {
+    if (selectedLayerIndex === -1) return;
+
+    const numValue = parseFloat(value);
+    layers[selectedLayerIndex][prop] = numValue;
+
+    const displayElement = document.getElementById(`val_${prop}`);
+    if (displayElement) {
+        displayElement.innerText = prop === 'scale' ? numValue.toFixed(2) : Math.round(numValue);
+    }
+    
+    renderPreview();
+}
+
+async function renderPreview() {
+    if (!pixiApp || !previewContainer) await initPixi();
+
+    layerSprites.forEach(sprite => {
+        previewContainer.removeChild(sprite);
+        sprite.destroy();
+    });
+    layerSprites.clear();
+
+    for (let i = 0; i < layers.length; i++) {
+        const layer = layers[i];
+        const path = `${CLIENT_URL}/assets/sprites/${layer.type}/${layer.asset}.png`;
+
+        try {
+            const texture = await PIXI.Assets.load(path);
+            const sprite = new PIXI.Sprite(texture);
+            sprite.anchor.set(0.5);
+            sprite.x = layer.offsetX;
+            sprite.y = layer.offsetY;
+            sprite.scale.set(layer.scale);
+            sprite.rotation = (layer.rotation * Math.PI) / 180;
+            sprite.zIndex = i;
+
+            previewContainer.addChild(sprite);
+            layerSprites.set(i, sprite);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    previewContainer.sortChildren();
+}
+
+async function saveGlobalConfig() {
+    if (layers.length === 0) {
+        alert('Adicione pelo menos uma camada!');
+        return;
+    }
+
     try {
-        const res = await fetch(`${API_URL}/api/admin/player/save-visual-detailed`, {
+        const res = await fetch(`${API_URL}/api/admin/visual/save-global-layers`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ layers })
         });
-        
+
         if (res.ok) {
-            const message = applyToAll 
-                ? '✅ Visual aplicado para TODOS os personagens!' 
-                : `✅ Visual salvo para ${charName}!`;
-            alert(message + '\n\nRelogue para ver as mudanças.');
-        } else {
-            alert('❌ Erro ao salvar');
+            alert('✅ Configuração salva!');
         }
     } catch (e) {
         console.error(e);
         alert('❌ Erro');
     }
 }
-// ============================================
-// INICIALIZAÇÃO
-// ============================================
-window.addEventListener('DOMContentLoaded', () => {
-loadItems();
-});
+
+// INIT
+window.addEventListener('DOMContentLoaded', loadItems);
 </script>
+
 </body>
-</html></parameter>
+</html>

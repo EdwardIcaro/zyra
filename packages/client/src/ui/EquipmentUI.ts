@@ -1,5 +1,7 @@
+// packages/client/src/ui/EquipmentUI.ts
 import { Container, Graphics, Text } from 'pixi.js';
-import { EquipSlot, type EquipmentState } from '@zyra/shared';
+import { EquipSlot } from '@zyra/shared'; // ✅ CORRIGIDO: importar o enum
+import type { EquipmentState } from '@zyra/shared';
 
 export class EquipmentUI extends Container {
     private background: Graphics;

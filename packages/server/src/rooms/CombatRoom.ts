@@ -39,15 +39,94 @@ export class CombatRoom extends Room<ZoneRoomState> {
       if (player) this.inventoryManager.moveItem(player, data.from, data.to);
     });
 
-    this.onMessage('equipment:equip', (client, data: { inventorySlot: number }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (player) this.equipmentManager.equipFromInventory(player, data.inventorySlot);
-    });
+this.onMessage('equipment:equip', async (client, data: { inventorySlot: number }) => {
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
 
-    this.onMessage('equipment:unequip', (client, data: { equipmentSlot: string }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (player) this.equipmentManager.unequipToInventory(player, data.equipmentSlot);
-    });
+    try {
+        // Buscar item no banco
+        const charRes = await db.query(
+            'SELECT id FROM characters WHERE char_name = $1', 
+            [player.username]
+        );
+        const charId = charRes.rows[0]?.id;
+
+        const itemRes = await db.query(
+            'SELECT * FROM items WHERE player_id = $1 AND slot_position = $2',
+            [charId, data.inventorySlot]
+        );
+
+        if (itemRes.rows.length === 0) {
+            console.warn('[Equip] No item found in slot', data.inventorySlot);
+            return;
+        }
+
+        const item = itemRes.rows[0];
+        
+        // ✅ NOVA LÓGICA: Se item tem visualConfigId, adicionar ao player
+        if (item.visual_config_id) {
+            // Verificar se já não está equipado
+            if (!player.equippedVisualIds.includes(item.visual_config_id)) {
+                player.equippedVisualIds.push(item.visual_config_id);
+                
+                // Atualizar item como equipado no banco
+                await db.query(
+                    'UPDATE items SET is_equipped = true WHERE id = $1',
+                    [item.id]
+                );
+                
+                console.log(`✅ [Equip] ${player.username} equipped visual ${item.visual_config_id}`);
+            }
+        }
+
+        // Chamar lógica antiga de equipamento (stats, etc)
+        this.equipmentManager.equipFromInventory(player, data.inventorySlot);
+    } catch (err: any) {
+        console.error('[Equip] Error:', err.message);
+    }
+});
+
+this.onMessage('equipment:unequip', async (client, data: { equipmentSlot: string }) => {
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
+
+    try {
+        const charRes = await db.query(
+            'SELECT id FROM characters WHERE char_name = $1', 
+            [player.username]
+        );
+        const charId = charRes.rows[0]?.id;
+
+        // Buscar item equipado no slot
+        const itemRes = await db.query(
+            'SELECT * FROM items WHERE player_id = $1 AND is_equipped = true',
+            [charId]
+        );
+
+        for (const item of itemRes.rows) {
+            if (item.visual_config_id && player.equippedVisualIds.includes(item.visual_config_id)) {
+                // ✅ REMOVER DO ARRAY
+                const index = player.equippedVisualIds.indexOf(item.visual_config_id);
+                if (index !== -1) {
+                    player.equippedVisualIds.splice(index, 1);
+                }
+
+                // Atualizar banco
+                await db.query(
+                    'UPDATE items SET is_equipped = false WHERE id = $1',
+                    [item.id]
+                );
+
+                console.log(`✅ [Unequip] ${player.username} unequipped visual ${item.visual_config_id}`);
+            }
+        }
+
+        // Chamar lógica antiga
+        this.equipmentManager.unequipToInventory(player, data.equipmentSlot);
+    } catch (err: any) {
+        console.error('[Unequip] Error:', err.message);
+    }
+});
 
     // --- MENSAGEM DE COLETA MANUAL (Caso o pickup automático falhe ou seja clicado) ---
     this.onMessage('item:pickup', async (client, data: { dropId: string }) => {
@@ -71,30 +150,55 @@ export class CombatRoom extends Room<ZoneRoomState> {
     this.initializeSpawns();
   }
 
-  async onJoin(client: Client, options: any) {
-    const { charName, classType, isNew, dbId } = options;
+  
+
+async onJoin(client: Client, options: any) {
+    const { charName, classType, isNew, dbId, bodyColor, eyeColor } = options;
+    
     try {
       let characterData;
+      
       if (isNew) {
+        // Criar novo personagem COM cores customizadas
         const newCharRes = await db.query(
-          `INSERT INTO characters (account_id, char_name, class_type, level, gold, session_id) 
-           VALUES ($1, $2, $3, 1, 100, $4) RETURNING *`,
-          [dbId, charName, classType || 'warrior', client.sessionId]
+          `INSERT INTO characters (
+            account_id, char_name, class_type, level, gold, session_id,
+            body_color, eye_color
+          ) 
+          VALUES ($1, $2, $3, 1, 100, $4, $5, $6) 
+          RETURNING *`,
+          [
+            dbId, 
+            charName, 
+            classType || 'warrior', 
+            client.sessionId,
+            bodyColor || '#FF6B6B',  // Default vermelho
+            eyeColor || '#FFFFFF'    // Default branco
+          ]
         );
         characterData = newCharRes.rows[0];
+        
         await db.query('INSERT INTO inventory (player_id) VALUES ($1)', [characterData.id]);
         await db.query(
-          `INSERT INTO items (player_id, item_id, quantity, slot_position) VALUES ($1, $2, 1, 0)`,
+          `INSERT INTO items (player_id, item_id, quantity, slot_position) 
+           VALUES ($1, $2, 1, 0)`,
           [characterData.id, 'sword_ink_blade']
         );
+        
+        console.log(`✅ [CombatRoom] Novo personagem criado: ${charName} (${bodyColor}, ${eyeColor})`);
       } else {
+        // Carregar personagem existente
         const charRes = await db.query('SELECT * FROM characters WHERE id = $1', [dbId]);
         characterData = charRes.rows[0];
-        await db.query('UPDATE characters SET session_id = $1 WHERE id = $2', [client.sessionId, dbId]);
+        await db.query(
+          'UPDATE characters SET session_id = $1 WHERE id = $2', 
+          [client.sessionId, dbId]
+        );
       }
 
       const classConfig = CLASSES[characterData.class_type as keyof typeof CLASSES];
       const player = new PlayerState();
+      
       player.playerId = client.sessionId;
       player.username = characterData.char_name;
       player.classType = characterData.class_type;
@@ -107,41 +211,25 @@ export class CombatRoom extends Room<ZoneRoomState> {
       player.isAlive = true;
       player.x = this.state.width / 2;
       player.y = this.state.height / 2;
-      // Visuais
+      
+      // ==================== CORES CUSTOMIZADAS ====================
+      player.bodyColor = characterData.body_color || '#FF6B6B';
+      player.eyeColor = characterData.eye_color || '#FFFFFF'; // ✅ MANTIDO
+      
+      // ==================== VISUAL SYSTEM ====================
+      player.eyeTypeId = characterData.eye_type_id || 1;
+      
+      // Visuais LEGADOS (mantidos para compatibilidade)
       player.visualBody = characterData.visual_body || 'ball_red';
       player.visualFace = characterData.visual_face || 'eyes_determined';
       player.visualHat = characterData.visual_hat || 'none';
 
-      // Face (Olhos)
-      player.faceOffsetX = characterData.face_offset_x || 0;
-      player.faceOffsetY = characterData.face_offset_y || 5;
-      player.faceScale = parseFloat(characterData.face_scale) || 1.0;
-      player.faceRotation = characterData.face_rotation || 0;
-      player.faceWidth = characterData.face_width || 35;
-      player.faceHeight = characterData.face_height || 18;
-
-      // Hat (Chapéu)
-      player.hatOffsetX = characterData.hat_offset_x || 0;
-      player.hatOffsetY = characterData.hat_offset_y || -20;
-      player.hatScale = parseFloat(characterData.hat_scale) || 1.0;
-      player.hatRotation = characterData.hat_rotation || 0;
-      player.hatWidth = characterData.hat_width || 60;
-      player.hatHeight = characterData.hat_height || 45;
-
-      console.log('🎨 Visuais carregados do banco:', {
-      face: player.visualFace,
-      faceY: player.faceOffsetY,
-      faceScale: player.faceScale,
-      hat: player.visualHat,
-      hatY: player.hatOffsetY,
-      hatScale: player.hatScale
-    });
-
-//
       await this.syncInventoryFromDB(characterData.id, player);
       this.state.players.set(client.sessionId, player);
+      
+      console.log(`👤 [CombatRoom] ${player.username} entrou (eyeType=${player.eyeTypeId}, ${player.bodyColor})`);
     } catch (err: any) {
-      console.error("❌ Erro onJoin:", err.message);
+      console.error("❌ [CombatRoom] Erro onJoin:", err.message);
       client.leave();
     }
   }

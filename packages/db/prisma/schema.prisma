@@ -1,0 +1,196 @@
+// 📄 [UPDATED] packages/db/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ACCOUNTS ====================
+
+model Account {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  characters Character[]
+  
+  @@map("accounts")
+}
+
+// ==================== CHARACTERS ====================
+
+model Character {
+  id            Int      @id @default(autoincrement())
+  accountId     Int      @map("account_id")
+  charName      String   @unique @map("char_name")
+  classType     String   @map("class_type")
+  level         Int      @default(1)
+  
+  // ✅ VISUAL SYSTEM (Nova Arquitetura)
+  eyeTypeId     Int?     @map("eye_type_id")
+  bodyColor     String?  @default("#FF6B6B") @map("body_color")
+  eyeColor      String?  @default("#FFFFFF") @map("eye_color")
+  
+  // ✅ LEGACY VISUAL FIELDS (mantidos para compatibilidade)
+  visualBody    String?  @default("ball_red") @map("visual_body")
+  visualFace    String?  @default("eyes_determined") @map("visual_face")
+  visualHat     String?  @default("none") @map("visual_hat")
+  
+  // Face Offsets
+  faceOffsetX   Int?     @default(0) @map("face_offset_x")
+  faceOffsetY   Int?     @default(5) @map("face_offset_y")
+  faceScale     Float?   @default(1.0) @map("face_scale")
+  faceRotation  Int?     @default(0) @map("face_rotation")
+  faceWidth     Int?     @default(35) @map("face_width")
+  faceHeight    Int?     @default(18) @map("face_height")
+  
+  // Hat Offsets
+  hatOffsetX    Int?     @default(0) @map("hat_offset_x")
+  hatOffsetY    Int?     @default(-20) @map("hat_offset_y")
+  hatScale      Float?   @default(1.0) @map("hat_scale")
+  hatRotation   Int?     @default(0) @map("hat_rotation")
+  hatWidth      Int?     @default(60) @map("hat_width")
+  hatHeight     Int?     @default(45) @map("hat_height")
+  
+  // Stats
+  experience    BigInt   @default(0)
+  gold          Int      @default(0)
+  maxHp         Int      @default(100) @map("max_hp")
+  currentHp     Int      @default(100) @map("current_hp")
+  maxMana       Int      @default(50) @map("max_mana")
+  currentMana   Int      @default(50) @map("current_mana")
+  damage        Int      @default(10)
+  defense       Int      @default(0)
+  
+  // Session
+  sessionId     String?  @map("session_id")
+  
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  items         Item[]
+  
+  @@index([accountId])
+  @@index([sessionId])
+  @@map("characters")
+}
+
+// ==================== ITEMS ====================
+
+model Item {
+  id               Int      @id @default(autoincrement())
+  playerId         Int      @map("player_id")
+  itemId           String   @map("item_id")
+  
+  // ✅ VISUAL SYSTEM
+  visualConfigId   Int?     @map("visual_config_id")
+  
+  quantity         Int      @default(1)
+  slotPosition     Int      @map("slot_position")
+  isEquipped       Boolean  @default(false) @map("is_equipped")
+  
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  
+  character        Character @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  @@unique([playerId, itemId, slotPosition])
+  @@index([playerId])
+  @@map("items")
+}
+
+// ==================== INVENTORY ====================
+
+model Inventory {
+  id        Int      @id @default(autoincrement())
+  playerId  Int      @unique @map("player_id")
+  maxSlots  Int      @default(40) @map("max_slots")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  @@map("inventory")
+}
+
+// ==================== VISUAL CONFIGS ====================
+
+model VisualConfig {
+  id        Int        @id @default(autoincrement())
+  type      VisualType
+  targetId  Int        @map("target_id")
+  layers    Json       // Array de camadas
+  overrides Json       @default("{}") // { hideEyes: bool, hideHat: bool }
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@unique([type, targetId])
+  @@index([type])
+  @@map("visual_configs")
+}
+
+enum VisualType {
+  EYE
+  HAT
+  MASK
+  WEAPON
+  ARMOR
+  PET
+}
+
+// ==================== ITEM TEMPLATES ====================
+
+model ItemTemplate {
+  id          Int      @id @default(autoincrement())
+  itemId      String   @unique @map("item_id")
+  name        String
+  description String?
+  type        String
+  grade       String?
+  stackable   Boolean  @default(false)
+  data        Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@map("item_templates")
+}
+
+// ==================== MONSTER TEMPLATES ====================
+
+model MonsterTemplate {
+  id         Int      @id @default(autoincrement())
+  monsterId  String   @unique @map("monster_id")
+  name       String
+  level      Int      @default(1)
+  type       String
+  appearance Json     @default("{}")
+  stats      Json     @default("{}")
+  behavior   Json     @default("{}")
+  rewards    Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  
+  @@map("monster_templates")
+}
+
+// ==================== MONSTER DROPS ====================
+
+model MonsterDrop {
+  id          Int      @id @default(autoincrement())
+  monsterId   String   @map("monster_id")
+  itemId      String   @map("item_id")
+  chance      Float
+  minQuantity Int      @default(1) @map("min_quantity")
+  maxQuantity Int      @default(1) @map("max_quantity")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@unique([monsterId, itemId])
+  @@index([monsterId])
+  @@map("monster_drops")
+}
