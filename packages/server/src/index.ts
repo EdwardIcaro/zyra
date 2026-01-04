@@ -151,6 +151,61 @@ app.post('/api/admin/reload', async (req: Request, res: Response): Promise<void>
     }
 });
 
+/**
+ * ✅ NOVO: Salvar configuração visual de um item específico
+ */
+app.post('/api/admin/visual/save-item-config', async (req: Request, res: Response): Promise<void> => {
+    const { itemId, layers } = req.body;
+    
+    if (!itemId || !layers) {
+        res.status(400).json({ error: 'itemId and layers required' });
+        return;
+    }
+
+    try {
+        // Salvar no campo data do item
+        await pool.query(`
+            UPDATE item_templates 
+            SET data = jsonb_set(
+                COALESCE(data, '{}'::jsonb), 
+                '{visualLayers}', 
+                $1::jsonb
+            )
+            WHERE id = $2
+        `, [JSON.stringify(layers), itemId]);
+        
+        console.info(`[Admin] Visual layers saved for item: ${itemId}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error saving item visual config:', err);
+        res.status(500).json({ error: 'Failed to save' });
+    }
+});
+
+/**
+ * ✅ NOVO: Carregar configuração visual de um item
+ */
+app.get('/api/admin/visual/item/:itemId', async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { itemId } = req.params;
+        const result = await pool.query(
+            'SELECT data FROM item_templates WHERE id = $1',
+            [itemId]
+        );
+        
+        if (result.rows.length === 0) {
+            res.status(404).json({ error: 'Item not found' });
+            return;
+        }
+        
+        const visualLayers = result.rows[0].data?.visualLayers || [];
+        res.json({ layers: visualLayers });
+    } catch (err) {
+        console.error('[Admin] Error loading item visual:', err);
+        res.status(500).json({ error: 'Failed to load' });
+    }
+});
+
 // ==================== ITEMS ROUTES ====================
 
 // Listar Items

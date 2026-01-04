@@ -6,31 +6,105 @@
     <title>ZYRA Admin | Complete Dashboard</title>
     <script src="https://pixijs.download/release/pixi.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        :root { --bg: #0f0f0f; --card: #1a1a1a; --border: #333; --accent: #007bff; }
-        body { background: var(--bg); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
-        .navbar { background: var(--card); border-bottom: 1px solid var(--border); }
-        .nav-tabs { border-bottom: 2px solid var(--border); }
-        .nav-link { color: #888; border: none !important; margin-right: 10px; transition: 0.3s; }
-        .nav-link:hover { color: #fff; }
-        .nav-link.active { color: var(--accent) !important; background: transparent !important; border-bottom: 2px solid var(--accent) !important; font-weight: bold; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
-        .timeline { display: flex; gap: 10px; overflow-x: auto; padding: 15px; background: #252525; border-radius: 8px; min-height: 100px; }
-        .timeline-item { 
-            background: #333; 
-            border: 2px solid #555; 
-            border-radius: 8px; 
-            padding: 10px; 
-            min-width: 120px; 
-            cursor: move;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-        }
-        .timeline-item.active { border-color: var(--accent); background: #444; }
-        .preview-container { background: #222; border-radius: 8px; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 400px; }
-    </style>
+<style>
+    :root { 
+        --bg: #0f0f0f; 
+        --card: #1a1a1a; 
+        --border: #333; 
+        --accent: #007bff; 
+        --text: #e0e0e0;  /* ✅ NOVO: texto claro global */
+        --text-muted: #999;  /* ✅ NOVO: texto secundário */
+    }
+    body { 
+        background: var(--bg); 
+        color: var(--text);  /* ✅ MUDADO: era #e0e0e0 */
+        font-family: 'Segoe UI', sans-serif; 
+    }
+    .navbar { 
+        background: var(--card); 
+        border-bottom: 1px solid var(--border); 
+    }
+    .nav-tabs { 
+        border-bottom: 2px solid var(--border); 
+    }
+    .nav-link { 
+        color: var(--text-muted);  /* ✅ MUDADO */
+        border: none !important; 
+        margin-right: 10px; 
+        transition: 0.3s; 
+    }
+    .nav-link:hover { 
+        color: var(--text);  /* ✅ MUDADO */
+    }
+    .nav-link.active { 
+        color: var(--accent) !important; 
+        background: transparent !important; 
+        border-bottom: 2px solid var(--accent) !important; 
+        font-weight: bold; 
+    }
+    .card { 
+        background: var(--card); 
+        border: 1px solid var(--border); 
+        border-radius: 8px; 
+    }
+    .timeline { 
+        display: flex; 
+        gap: 10px; 
+        overflow-x: auto; 
+        padding: 15px; 
+        background: #252525; 
+        border-radius: 8px; 
+        min-height: 100px; 
+    }
+    .timeline-item { 
+        background: #333; 
+        border: 2px solid #555; 
+        border-radius: 8px; 
+        padding: 10px; 
+        min-width: 120px; 
+        cursor: move;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        color: var(--text);  /* ✅ NOVO */
+    }
+    .timeline-item.active { 
+        border-color: var(--accent); 
+        background: #444; 
+    }
+    .preview-container { 
+        background: #222; 
+        border-radius: 8px; 
+        padding: 20px; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        min-height: 400px; 
+    }
+    
+    /* ✅ NOVOS estilos para labels e controles */
+    label {
+        color: var(--text);
+        font-weight: 500;
+    }
+    
+    .form-control, .form-select {
+        background: #2a2a2a;
+        border: 1px solid var(--border);
+        color: var(--text);
+    }
+    
+    .form-control:focus, .form-select:focus {
+        background: #333;
+        border-color: var(--accent);
+        color: var(--text);
+    }
+    
+    .text-muted {
+        color: var(--text-muted) !important;
+    }
+</style>
 </head>
 <body>
 
@@ -98,6 +172,29 @@
         </div>
     </div>
 
+    <div id="visualSection" style="display: none;">
+    <div class="row">
+        <div class="col-md-4">
+            
+            <!-- ✅ NOVO: Seletor de Modo -->
+            <div class="card p-4 mb-3">
+                <h5 class="text-warning mb-3">🎯 Modo de Configuração</h5>
+                <label>Configurar para:</label>
+                <select id="visualModeSelect" class="form-select mb-2" onchange="switchVisualMode()">
+                    <option value="global">Config Global (Todos os Players)</option>
+                    <option value="item">Item Específico</option>
+                </select>
+                
+                <!-- Container que aparece quando item for selecionado -->
+                <div id="itemSelectorContainer" style="display: none;">
+                    <label>Selecionar Item:</label>
+                    <select id="visualItemSelect" class="form-select mb-2" onchange="loadItemVisualConfig()">
+                        <option value="">Carregando...</option>
+                    </select>
+                    <small class="text-muted">Camadas serão salvas para este item específico</small>
+                </div>
+            </div>
+
     <!-- ==================== MONSTERS TAB ==================== -->
     <div id="monstersSection" style="display: none;">
         <div class="row">
@@ -133,6 +230,8 @@
             </div>
         </div>
     </div>
+
+
 
     <!-- ==================== VISUAL SYSTEM TAB ==================== -->
     <div id="visualSection" style="display: none;">
@@ -301,6 +400,83 @@ async function applyChanges() {
     if(res.ok) alert('🚀 Servidor sincronizado!');
 }
 
+let currentVisualMode = 'global';  // ✅ NOVO: rastreia modo atual
+let currentItemId = null;  // ✅ NOVO: item selecionado
+let baseBallSprite = null;  // ✅ NOVO: referência ao sprite base
+
+// ✅ NOVO: Alternar entre Global e Item
+async function switchVisualMode() {
+    currentVisualMode = document.getElementById('visualModeSelect').value;
+    const itemContainer = document.getElementById('itemSelectorContainer');
+    
+    if (currentVisualMode === 'item') {
+        itemContainer.style.display = 'block';
+        await loadItemsForVisualConfig();
+    } else {
+        itemContainer.style.display = 'none';
+        currentItemId = null;
+        layers = [];
+        renderTimeline();
+        await renderPreview();
+    }
+    
+    updateSaveButtonText();
+}
+
+// ✅ NOVO: Carregar lista de itens
+async function loadItemsForVisualConfig() {
+    try {
+        const res = await fetch(`${API_URL}/api/admin/items`);
+        const items = await res.json();
+        
+        const select = document.getElementById('visualItemSelect');
+        select.innerHTML = '<option value="">-- Selecione um Item --</option>' + 
+            items.map(item => `<option value="${item.id}">${item.name} (${item.id})</option>`).join('');
+    } catch (e) {
+        console.error('[Visual] Erro ao carregar itens:', e);
+    }
+}
+
+// ✅ NOVO: Carregar config de um item
+async function loadItemVisualConfig() {
+    currentItemId = document.getElementById('visualItemSelect').value;
+    
+    if (!currentItemId) {
+        layers = [];
+        renderTimeline();
+        await renderPreview();
+        return;
+    }
+    
+    try {
+        const res = await fetch(`${API_URL}/api/admin/visual/item/${currentItemId}`);
+        if (res.ok) {
+            const data = await res.json();
+            layers = data.layers || [];
+            renderTimeline();
+            await renderPreview();
+        }
+    } catch (e) {
+        console.error('[Visual] Erro ao carregar config do item:', e);
+        layers = [];
+        renderTimeline();
+        await renderPreview();
+    }
+}
+
+// ✅ NOVO: Atualizar texto do botão
+function updateSaveButtonText() {
+    const btn = document.querySelector('button[onclick="saveGlobalConfig()"]');
+    if (!btn) return;
+    
+    if (currentVisualMode === 'item' && currentItemId) {
+        const itemName = document.getElementById('visualItemSelect').selectedOptions[0]?.text || 'Item';
+        btn.textContent = `💾 Salvar Config para ${itemName}`;
+    } else {
+        btn.textContent = '💾 Salvar Config Global';
+    }
+}
+
 // ============================================
 // VISUAL SYSTEM LOGIC
 // ============================================
@@ -318,6 +494,9 @@ async function initPixi() {
     previewContainer.y = 150;
     pixiApp.stage.addChild(previewContainer);
 
+    // ✅ NOVO: Carregar bolinha base automaticamente
+    await loadBaseBall();
+
     const highlight = new PIXI.Graphics();
     highlight.circle(0, 0, 30);
     highlight.stroke({ width: 2, color: 0xffff00, alpha: 0.5 });
@@ -327,6 +506,26 @@ async function initPixi() {
         const bounce = Math.sin(Date.now() / 200) * 0.04;
         previewContainer.scale.set(1 + bounce);
     });
+}
+
+// ✅ NOVA FUNÇÃO: Carregar sprite base do corpo
+async function loadBaseBall() {
+    try {
+        const path = `${CLIENT_URL}/assets/sprites/bodies/ball_red.png`;
+        const texture = await PIXI.Assets.load(path);
+        
+        baseBallSprite = new PIXI.Sprite(texture);
+        baseBallSprite.anchor.set(0.5);
+        baseBallSprite.scale.set(1.0);  // Escala fixa
+        baseBallSprite.zIndex = 0;  // Sempre na camada mais baixa
+        
+        previewContainer.addChild(baseBallSprite);
+        previewContainer.sortChildren();
+        
+        console.log('[Visual] Bolinha base carregada automaticamente');
+    } catch (e) {
+        console.error('[Visual] Erro ao carregar bolinha:', e);
+    }
 }
 
 async function loadAssetsForLayer() {
@@ -442,11 +641,19 @@ function updateLayerProp(prop, value) {
 async function renderPreview() {
     if (!pixiApp || !previewContainer) await initPixi();
 
+    // ✅ MUDADO: Remover apenas sprites de camadas, não a bolinha base
     layerSprites.forEach(sprite => {
-        previewContainer.removeChild(sprite);
-        sprite.destroy();
+        if (sprite !== baseBallSprite) {  // Preservar bolinha
+            previewContainer.removeChild(sprite);
+            sprite.destroy();
+        }
     });
     layerSprites.clear();
+    
+    // ✅ NOVO: Re-adicionar bolinha se foi removida acidentalmente
+    if (baseBallSprite && !previewContainer.children.includes(baseBallSprite)) {
+        previewContainer.addChildAt(baseBallSprite, 0);
+    }
 
     for (let i = 0; i < layers.length; i++) {
         const layer = layers[i];
@@ -460,7 +667,7 @@ async function renderPreview() {
             sprite.y = layer.offsetY;
             sprite.scale.set(layer.scale);
             sprite.rotation = (layer.rotation * Math.PI) / 180;
-            sprite.zIndex = i;
+            sprite.zIndex = i + 1;  // ✅ MUDADO: +1 para ficar acima da bolinha
 
             previewContainer.addChild(sprite);
             layerSprites.set(i, sprite);
@@ -473,24 +680,38 @@ async function renderPreview() {
 }
 
 async function saveGlobalConfig() {
-    if (layers.length === 0) {
-        alert('Adicione pelo menos uma camada!');
+    if (layers.length === 0 && currentVisualMode === 'global') {
+        alert('Adicione pelo menos uma camada além da bolinha base!');
         return;
     }
 
     try {
-        const res = await fetch(`${API_URL}/api/admin/visual/save-global-layers`, {
+        let endpoint, body;
+        
+        if (currentVisualMode === 'item' && currentItemId) {
+            // ✅ Salvar para item específico
+            endpoint = `${API_URL}/api/admin/visual/save-item-config`;
+            body = { itemId: currentItemId, layers };
+        } else {
+            // Salvar globalmente
+            endpoint = `${API_URL}/api/admin/visual/save-global-layers`;
+            body = { layers };
+        }
+        
+        const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ layers })
+            body: JSON.stringify(body)
         });
 
         if (res.ok) {
-            alert('✅ Configuração salva!');
+            alert('✅ Configuração salva com sucesso!');
+        } else {
+            alert('❌ Erro ao salvar');
         }
     } catch (e) {
         console.error(e);
-        alert('❌ Erro');
+        alert('❌ Erro de conexão');
     }
 }
 

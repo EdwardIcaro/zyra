@@ -1,17 +1,17 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-01-03T20:25:47.330Z",
+  "lastUpdated": "2026-01-04T00:23:25.408Z",
   "layers": [
     {
       "zIndex": 0,
-      "type": "hats",
-      "asset": "hat_mage",
-      "offsetX": 9,
-      "offsetY": -38,
-      "scale": 0.1,
+      "type": "bodies",
+      "asset": "ball_red",
+      "offsetX": 0,
+      "offsetY": 0,
+      "scale": 1,
       "rotation": 0,
-      "width": 60,
-      "height": 45
+      "width": 58,
+      "height": 58
     }
   ]
 }
