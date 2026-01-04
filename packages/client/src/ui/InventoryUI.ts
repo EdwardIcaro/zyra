@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js';
-import { EquipSlot } from '@zyra/shared'; // ✅ CORRIGIDO: importar o enum corretamente
-import type { InventoryState, EquipmentState, InventorySlot } from '@zyra/shared';
+import { EquipSlot, ItemRegistry } from '@zyra/shared'; 
+import type { InventoryState, EquipmentState, InventorySlot, } from '@zyra/shared';
 
 export type SlotCallback = (index: number) => void;
 export type EquipmentCallback = (slotName: string) => void;
@@ -147,13 +147,52 @@ export class InventoryUI extends Container {
         return cnt;
     }
 
-    private handleInventoryClick(index: number) {
-        const now = Date.now();
-        if (now - this.lastClickTime < 300 && this.onItemDoubleClick) {
+private handleInventoryClick(index: number) {
+    const now = Date.now();
+    if (now - this.lastClickTime < 300 && this.onItemDoubleClick) {
+        // ✅ NOVO: Validar antes de equipar
+        const item = this.lastInvData?.slots.get(index.toString());
+        if (item) {
+            const template = ItemRegistry.getTemplate(item.itemId);
+            
+            if (!template) {
+                console.warn('[InventoryUI] Item template not found:', item.itemId);
+                return;
+            }
+
+            // ✅ VALIDAÇÃO CLIENT-SIDE
+            if (!template.isEquipable) {
+                this.showMessage('❌ Este item não pode ser equipado');
+                return;
+            }
+
+            if (!template.equipSlot) {
+                this.showMessage('❌ Slot de equipamento inválido');
+                return;
+            }
+
+            // ✅ OK - Enviar para server
             this.onItemDoubleClick(index);
         }
-        this.lastClickTime = now;
     }
+    this.lastClickTime = now;
+}
+
+// ✅ NOVO: Método para mostrar mensagens temporárias
+private showMessage(text: string) {
+    const msg = new Text({ 
+        text, 
+        style: { fontSize: 14, fill: 0xff4444, fontWeight: 'bold' } 
+    });
+    msg.anchor.set(0.5);
+    msg.position.set(this.WINDOW_WIDTH / 2, 20);
+    this.addChild(msg);
+
+    setTimeout(() => {
+        this.removeChild(msg);
+        msg.destroy();
+    }, 2000);
+}
 
     public update(inv: InventoryState, equip: EquipmentState, gold: number) {
         this.lastInvData = inv; // Cache para o hover funcionar

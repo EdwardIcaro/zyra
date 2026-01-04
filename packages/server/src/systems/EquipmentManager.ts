@@ -1,8 +1,9 @@
 import { PlayerState, EquippedItem, EquipSlot } from '@zyra/shared';
 import { 
   getEquipmentData, 
-  canEquip 
+  canEquip, ItemRegistry 
 } from '@zyra/shared';
+
 
 export class EquipmentManager {
   /**
@@ -11,72 +12,84 @@ export class EquipmentManager {
    * @param inventorySlotIndex - Índice do slot no inventário
    * @returns true se equipou com sucesso
    */
-  equipFromInventory(player: PlayerState, inventorySlotIndex: number): boolean {
-    // 1. Pegar item do inventário
+equipFromInventory(player: PlayerState, inventorySlotIndex: number): boolean {
     const invSlot = player.inventory.slots.get(inventorySlotIndex.toString());
     if (!invSlot) {
-      console.warn(`[EquipmentManager] No item in inventory slot ${inventorySlotIndex}`);
-      return false;
+        console.warn(`[EquipmentManager] No item in inventory slot ${inventorySlotIndex}`);
+        return false;
     }
 
     const itemId = invSlot.itemId;
+    
+    // ✅ NOVO: Buscar template completo com equipSlot
+    const itemTemplate = ItemRegistry.getTemplate(itemId);
+    if (!itemTemplate) {
+        console.warn(`[EquipmentManager] Item ${itemId} not found in registry`);
+        return false;
+    }
+
+    // ✅ NOVO: Validar se item é equipável
+    if (!itemTemplate.isEquipable || !itemTemplate.equipSlot) {
+        console.warn(`[EquipmentManager] Item ${itemId} is not equipable`);
+        return false;
+    }
+
     const equipmentData = getEquipmentData(itemId);
-
     if (!equipmentData) {
-      console.warn(`[EquipmentManager] Item ${itemId} is not equipment`);
-      return false;
+        console.warn(`[EquipmentManager] Item ${itemId} has no equipment data`);
+        return false;
     }
 
-    // 2. Verificar requisitos
+    // ✅ NOVO: Usar equipSlot do template ao invés de hardcoded
+    let targetSlot = itemTemplate.equipSlot as EquipSlot;
+
+    // Caso especial: Rings (aceitar ring1 ou ring2)
+    if (targetSlot === EquipSlot.RING1 || targetSlot === EquipSlot.RING2) {
+        const ring1 = player.equipment.equipped.get(EquipSlot.RING1);
+        const ring2 = player.equipment.equipped.get(EquipSlot.RING2);
+        
+        if (!ring1) {
+            targetSlot = EquipSlot.RING1;
+        } else if (!ring2) {
+            targetSlot = EquipSlot.RING2;
+        } else {
+            // Ambos ocupados, substituir ring1
+            this.unequipToInventory(player, EquipSlot.RING1);
+            targetSlot = EquipSlot.RING1;
+        }
+    }
+
+    // Verificar requisitos (nível, stats, classe)
     if (!canEquip(itemId, player.level, {
-      strength: player.baseStrength,
-      dexterity: player.baseDexterity,
-      intelligence: player.baseIntelligence
+        strength: player.baseStrength,
+        dexterity: player.baseDexterity,
+        intelligence: player.baseIntelligence
     }, player.classType)) {
-      console.warn(`[EquipmentManager] ${player.username} cannot equip ${itemId} - requirements not met`);
-      return false;
+        console.warn(`[EquipmentManager] ${player.username} cannot equip ${itemId} - requirements not met`);
+        return false;
     }
 
-    // 3. Determinar qual slot usar
-    let targetSlot = equipmentData.slot;
-
-    // Caso especial: Rings (pode usar ring1 ou ring2)
-    if (equipmentData.slot === EquipSlot.RING1 || equipmentData.slot === EquipSlot.RING2) {
-      const ring1 = player.equipment.equipped.get(EquipSlot.RING1);
-      const ring2 = player.equipment.equipped.get(EquipSlot.RING2);
-      
-      if (!ring1) {
-        targetSlot = EquipSlot.RING1;
-      } else if (!ring2) {
-        targetSlot = EquipSlot.RING2;
-      } else {
-        // Ambos ocupados, substituir ring1
-        this.unequipToInventory(player, EquipSlot.RING1);
-        targetSlot = EquipSlot.RING1;
-      }
-    }
-
-    // 4. Se slot já ocupado, desequipar item atual
+    // Se slot já ocupado, desequipar item atual
     const currentEquipped = player.equipment.equipped.get(targetSlot);
     if (currentEquipped) {
-      this.unequipToInventory(player, targetSlot);
+        this.unequipToInventory(player, targetSlot);
     }
 
-    // 5. Equipar novo item
+    // Equipar novo item
     const equippedItem = new EquippedItem();
     equippedItem.itemId = itemId;
     equippedItem.slot = targetSlot;
     player.equipment.equipped.set(targetSlot, equippedItem);
 
-    // 6. Remover do inventário
+    // Remover do inventário
     player.inventory.slots.delete(inventorySlotIndex.toString());
 
-    // 7. Recalcular stats
+    // Recalcular stats
     this.recalculateStats(player);
 
     console.info(`[EquipmentManager] ${player.username} equipped ${itemId} in ${targetSlot}`);
     return true;
-  }
+}
 
   /**
    * Desequipar item e colocar de volta no inventário

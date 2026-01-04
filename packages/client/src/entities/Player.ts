@@ -4,6 +4,7 @@
 import { Container, Graphics, Text, Sprite } from 'pixi.js';
 import * as PIXI from 'pixi.js';
 import type { PlayerState } from '@zyra/shared';
+import { ItemRegistry } from '@zyra/shared';
 
 interface LayerConfig {
   zIndex: number;
@@ -36,6 +37,57 @@ export class Player extends Container {
 
   // Cache da configuração global
   private static globalLayersConfig: LayerConfig[] | null = null;
+
+  private updateEquipmentVisuals() {
+    if (!this.state.equipment || !this.state.equipment.equipped) return;
+
+    // Limpar sprites de equipamento antigos (exceto corpo base)
+    this.layerSprites.forEach((sprite, key) => {
+        if (key !== 'bodies') {  // Preservar corpo
+            this.visualContainer.removeChild(sprite);
+            sprite.destroy();
+            this.layerSprites.delete(key);
+        }
+    });
+
+    // Renderizar cada item equipado
+    this.state.equipment.equipped.forEach((equippedItem) => {
+        const itemTemplate = ItemRegistry.getTemplate(equippedItem.itemId);
+        if (!itemTemplate || !itemTemplate.visualLayers) return;
+
+        // ✅ Renderizar camadas visuais do item
+        itemTemplate.visualLayers.forEach((layer: any) => {
+            this.renderEquipmentLayer(layer, equippedItem.slot);
+        });
+    });
+
+    this.visualContainer.sortChildren();
+}
+
+private async renderEquipmentLayer(layer: any, slot: string) {
+    const path = `/assets/sprites/${layer.type}/${layer.asset}.png`;
+
+    try {
+        const texture = await PIXI.Assets.load(path);
+        const sprite = new Sprite(texture);
+        sprite.anchor.set(0.5);
+        sprite.x = layer.offsetX || 0;
+        sprite.y = layer.offsetY || 0;
+        sprite.scale.set(layer.scale || 1.0);
+        sprite.rotation = ((layer.rotation || 0) * Math.PI) / 180;
+        sprite.zIndex = layer.zIndex || 2;
+
+        // ✅ Aplicar tints específicos (opcional)
+        if (layer.colorTint && layer.colorTint.startsWith('#')) {
+            sprite.tint = parseInt(layer.colorTint.replace('#', '0x'));
+        }
+
+        this.visualContainer.addChild(sprite);
+        this.layerSprites.set(`${slot}_${layer.type}`, sprite);
+    } catch (e) {
+        console.error(`[Player] Failed to load equipment layer ${path}:`, e);
+    }
+}
 
   constructor(state: PlayerState, isLocalPlayer: boolean) {
     super();
@@ -97,9 +149,18 @@ export class Player extends Container {
       if (this.state.x < this.position.x) this.facingDirection = -1;
       else if (this.state.x > this.position.x) this.facingDirection = 1;
 
+          // Listener para mudanças no equipamento
+      this.state.equipment.equipped.onChange(() => {
+        this.updateEquipmentVisuals();
+      });
+
+      
+      this.updateEquipmentVisuals();
       this.updateVisuals();
     });
   }
+
+  
 
   /**
    * Carregar configuração global de camadas e renderizar

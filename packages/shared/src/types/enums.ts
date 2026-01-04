@@ -41,3 +41,15 @@ export enum StatType {
   VITALITY = 'vitality',
   LUCK = 'luck'
 }
+
+// Novo: Labels amigáveis para UI
+export const EQUIP_SLOT_LABELS: Record<EquipSlot, string> = {
+  [EquipSlot.WEAPON]: 'Weapon',
+  [EquipSlot.HEAD]: 'Head',
+  [EquipSlot.CHEST]: 'Armor',    // ← UI mostra "Armor"
+  [EquipSlot.LEGS]: 'Legs',
+  [EquipSlot.BOOTS]: 'Boots',
+  [EquipSlot.RING1]: 'Ring',
+  [EquipSlot.RING2]: 'Ring',
+  [EquipSlot.AMULET]: 'Neck'     // ← UI mostra "Neck"
+};

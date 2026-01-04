@@ -17,8 +17,13 @@ export class ItemRegistry {
 
         // 2. Adicionar os itens vindos do Banco de Dados
         templates.forEach(item => {
-            this.items.set(item.id, item);
+        this.items.set(item.id, {
+            ...item,
+            equipSlot: item.equip_slot,      // ← NOVO
+            itemType: item.item_type,         // ← NOVO
+            isEquipable: item.is_equipable    // ← NOVO
         });
+    });
 
         this.initialized = true;
         

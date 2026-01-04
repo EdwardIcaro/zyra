@@ -10,9 +10,11 @@ import { ItemRegistry, MonsterRegistry } from '@zyra/shared';
 import { VISUAL_CONFIGS } from '@zyra/shared/src/data/visualConfigs';
 import { pool } from './database/db';
 
+
 import { CombatRoom } from './rooms/CombatRoom';
 import { WorldRoom } from './rooms/WorldRoom';
 import { LobbyRoom } from './rooms/LobbyRoom';
+import adminUsersRouter from './routes/admin-users';
 
 dotenv.config();
 
@@ -20,6 +22,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/admin', express.static('public/admin.html'));
+app.use('/api/admin', adminUsersRouter);
 
 app.get('/dashboard', (req, res) => {
     const adminPath = path.join(__dirname, '../public/admin.html');
@@ -221,19 +224,33 @@ app.get('/api/admin/items', async (req: Request, res: Response): Promise<void> =
 
 // Salvar/Atualizar Item
 app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<void> => {
-    const { id, name, description, type, grade, stackable, data } = req.body;
+    const { 
+        id, name, description, type, grade, stackable, 
+        is_equipable, equip_slot, item_type  // ✅ NOVOS CAMPOS
+    } = req.body;
+    
     try {
         await pool.query(`
-            INSERT INTO item_templates (id, name, description, type, grade, stackable, data)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO item_templates (
+                id, name, description, type, grade, stackable, 
+                is_equipable, equip_slot, item_type  
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 description = EXCLUDED.description,
                 type = EXCLUDED.type,
                 grade = EXCLUDED.grade,
                 stackable = EXCLUDED.stackable,
-                data = EXCLUDED.data
-        `, [id, name, description, type, grade, stackable, JSON.stringify(data || {})]);
+                is_equipable = EXCLUDED.is_equipable,
+                equip_slot = EXCLUDED.equip_slot,
+                item_type = EXCLUDED.item_type
+        `, [
+            id, name, description, type, grade, stackable,
+            is_equipable || false,  // ✅ NOVO
+            equip_slot || null,     // ✅ NOVO
+            item_type || type       // ✅ NOVO
+        ]);
         
         res.json({ success: true });
     } catch (err) {

@@ -126,7 +126,256 @@
         <li class="nav-item">
             <button class="nav-link" onclick="switchTab('visual')">🎨 Visual System</button>
         </li>
+        <li class="nav-item">
+        <button class="nav-link" onclick="switchTab('users')">👥 Usuários</button>
+        </li>
     </ul>
+
+    <!-- ==================== USERS TAB ==================== -->
+<div id="usersSection" style="display: none;">
+    <div class="row">
+        <!-- ========== COLUNA ESQUERDA: Busca e Lista ========== -->
+        <div class="col-md-4">
+            <div class="card p-4 mb-3">
+                <h5 class="text-info mb-3">🔍 Buscar Conta</h5>
+                <input 
+                    type="text" 
+                    id="userSearchInput" 
+                    class="form-control mb-2" 
+                    placeholder="Nome da conta, personagem..."
+                    onkeyup="handleUserSearch(event)"
+                >
+                <button class="btn btn-primary w-100" onclick="searchUsers()">
+                    Buscar
+                </button>
+            </div>
+
+            <div class="card p-0">
+                <div class="card-header bg-dark text-light">
+                    <strong>📋 Contas Encontradas</strong>
+                </div>
+                <div style="max-height: 600px; overflow-y: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-dark sticky-top">
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Chars</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">
+                                    Use a busca acima
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== COLUNA DIREITA: Detalhes da Conta ========== -->
+        <div class="col-md-8">
+            <div id="userDetailsPanel" style="display: none;">
+                
+                <!-- Info da Conta -->
+                <div class="card p-4 mb-3">
+                    <h5 class="text-warning mb-3">🏦 Informações da Conta</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Account ID</label>
+                            <input type="text" id="acc_id" class="form-control mb-2" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Username</label>
+                            <input type="text" id="acc_username" class="form-control mb-2" disabled>
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        Criado em: <span id="acc_created">-</span>
+                    </small>
+                </div>
+
+                <!-- Lista de Personagens -->
+                <div class="card p-4 mb-3">
+                    <h5 class="text-success mb-3">🎮 Personagens desta Conta</h5>
+                    <div id="charactersListContainer">
+                        <p class="text-muted">Carregando...</p>
+                    </div>
+                </div>
+
+                <!-- Editor de Personagem -->
+                <div id="characterEditorPanel" style="display: none;">
+                    <div class="card p-4 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="text-primary mb-0">✏️ Editar Personagem</h5>
+                            <button class="btn btn-sm btn-secondary" onclick="closeCharacterEditor()">
+                                ← Voltar
+                            </button>
+                        </div>
+
+                        <!-- Abas Internas: Dados | Inventário -->
+                        <ul class="nav nav-pills mb-3">
+                            <li class="nav-item">
+                                <button class="nav-link active" onclick="switchCharTab('data')" id="charTabData">
+                                    📊 Dados
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" onclick="switchCharTab('inventory')" id="charTabInventory">
+                                    🎒 Inventário
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Conteúdo: Dados do Personagem -->
+                        <div id="charDataSection">
+                            <form id="characterEditForm">
+                                <input type="hidden" id="char_id">
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label>Nome do Personagem</label>
+                                        <input type="text" id="char_name" class="form-control mb-2" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label>Classe</label>
+                                        <select id="char_class" class="form-select mb-2">
+                                            <option value="warrior">Warrior</option>
+                                            <option value="mage">Mage</option>
+                                            <option value="archer">Archer</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label>Level</label>
+                                        <input type="number" id="char_level" class="form-control mb-2" min="1" max="100">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label>Experience</label>
+                                        <input type="number" id="char_exp" class="form-control mb-2" min="0">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label>Gold</label>
+                                        <input type="number" id="char_gold" class="form-control mb-2" min="0">
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label>Max HP</label>
+                                        <input type="number" id="char_maxHp" class="form-control mb-2">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label>Damage</label>
+                                        <input type="number" id="char_damage" class="form-control mb-2">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label>Defense</label>
+                                        <input type="number" id="char_defense" class="form-control mb-2">
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label>Eye Type ID</label>
+                                        <input type="number" id="char_eyeType" class="form-control mb-2" min="1">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label>Body Color (Hex)</label>
+                                        <input type="color" id="char_bodyColor" class="form-control mb-2">
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-info">
+                                    <small>
+                                        <strong>Status:</strong> 
+                                        <span id="char_status">Offline</span>
+                                    </small>
+                                </div>
+
+                                <button type="submit" class="btn btn-success w-100">
+                                    💾 Salvar Alterações
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Conteúdo: Inventário -->
+                        <div id="charInventorySection" style="display: none;">
+                            <div class="d-flex justify-content-between mb-3">
+                                <h6 class="text-muted">Itens Equipados e no Inventário</h6>
+                                <button class="btn btn-sm btn-primary" onclick="openAddItemModal()">
+                                    ➕ Adicionar Item
+                                </button>
+                            </div>
+
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-dark sticky-top">
+                                        <tr>
+                                            <th>Slot</th>
+                                            <th>Item ID</th>
+                                            <th>Qtd</th>
+                                            <th>Equipado</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inventoryTableBody">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                Carregando inventário...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Placeholder quando nenhuma conta está selecionada -->
+            <div id="userDetailsPlaceholder">
+                <div class="card p-5 text-center">
+                    <div class="text-muted">
+                        <i style="font-size: 64px;">👤</i>
+                        <h5 class="mt-3">Selecione uma conta para ver detalhes</h5>
+                        <p>Use a busca à esquerda para encontrar usuários</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Adicionar Item -->
+<div class="modal fade" id="addItemModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header">
+                <h5 class="modal-title">➕ Adicionar Item ao Inventário</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addItemForm">
+                    <label>Item ID (Template)</label>
+                    <input type="text" id="modal_itemId" class="form-control mb-2" placeholder="ex: sword_ink_blade" required>
+                    
+                    <label>Quantidade</label>
+                    <input type="number" id="modal_quantity" class="form-control mb-2" value="1" min="1">
+                    
+                    <label>Slot Position (opcional)</label>
+                    <input type="number" id="modal_slot" class="form-control mb-3" placeholder="0-39">
+                    
+                    <button type="submit" class="btn btn-primary w-100">Adicionar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
     <!-- ==================== ITEMS TAB ==================== -->
     <div id="itemsSection">
@@ -140,10 +389,13 @@
                         <label>Nome</label>
                         <input type="text" id="i_name" class="form-control mb-2" required>
                         <label>Tipo</label>
-                        <select id="i_type" class="form-select mb-2">
+                        <label>Tipo</label>
+                        <select id="i_type" class="form-select mb-2" onchange="toggleEquipableFields()">
                             <option value="material">Material</option>
                             <option value="weapon">Weapon</option>
                             <option value="armor">Armor</option>
+                            <option value="accessory">Accessory</option>
+                            <option value="consumable">Consumable</option>
                         </select>
                         <label>Grade</label>
                         <select id="i_grade" class="form-select mb-2">
@@ -153,12 +405,111 @@
                             <option value="A">A</option>
                             <option value="S">S</option>
                         </select>
+
+                        <!-- ✅ NOVO: Campos de Equipamento -->
+                        <div id="equipableFields" style="display: none;">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="i_isEquipable" onchange="toggleSlotSelect()">
+                                <label class="form-check-label" for="i_isEquipable">
+                                    📌 Item Equipável
+                                </label>
+                            </div>   
+
+                        <div id="slotSelectContainer" style="display: none;">
+                        <label>Slot de Equipamento</label>
+                        <select id="i_equipSlot" class="form-select mb-2">
+                            <option value="">Selecione...</option>
+                            <option value="weapon">Weapon (Mão)</option>
+                            <option value="head">Head (Cabeça)</option>
+                            <option value="chest">Armor (Torso)</option>
+                            <option value="legs">Legs (Pernas)</option>
+                            <option value="boots">Boots (Pés)</option>
+                            <option value="ring1">Ring (Anel)</option>
+                            <option value="amulet">Neck (Colar)</option>
+                        </select>
+                            </div>
+                        </div>           
+
                         <label>Descrição</label>
                         <textarea id="i_desc" class="form-control mb-3" rows="3"></textarea>
                         <button type="submit" class="btn btn-primary w-100">Salvar Item</button>
                     </form>
                 </div>
             </div>
+
+            <script>
+            // ✅ NOVO: Mostrar/ocultar campos de equipamento
+            function toggleEquipableFields() {
+                const type = document.getElementById('i_type').value;
+                const equipableFields = document.getElementById('equipableFields');
+                
+                // Mostrar campos apenas para weapon, armor, accessory
+                if (type === 'weapon' || type === 'armor' || type === 'accessory') {
+                    equipableFields.style.display = 'block';
+                    document.getElementById('i_isEquipable').checked = true;
+                    toggleSlotSelect();
+                } else {
+                    equipableFields.style.display = 'none';
+                    document.getElementById('i_isEquipable').checked = false;
+                    document.getElementById('slotSelectContainer').style.display = 'none';
+                }
+            }
+
+            function toggleSlotSelect() {
+                const isEquipable = document.getElementById('i_isEquipable').checked;
+                document.getElementById('slotSelectContainer').style.display = isEquipable ? 'block' : 'none';
+            }
+
+            // ✅ ATUALIZAR submit do formulário
+            document.getElementById('itemForm').onsubmit = async (e) => {
+                e.preventDefault();
+                
+                const isEquipable = document.getElementById('i_isEquipable').checked;
+                const equipSlot = isEquipable ? document.getElementById('i_equipSlot').value : null;
+
+                await fetch(`${API_URL}/api/admin/items/save`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id: document.getElementById('i_id').value,
+                        name: document.getElementById('i_name').value,
+                        description: document.getElementById('i_desc').value,
+                        type: document.getElementById('i_type').value,
+                        grade: document.getElementById('i_grade').value,
+                        stackable: document.getElementById('i_type').value === 'material',
+                        is_equipable: isEquipable,       // ✅ NOVO
+                        equip_slot: equipSlot,           // ✅ NOVO
+                        item_type: document.getElementById('i_type').value  // ✅ NOVO
+                    })
+                });
+                
+                alert('✅ Item salvo com sucesso!');
+                loadItems();
+            };
+
+            // ✅ ATUALIZAR editItem para preencher novos campos
+            function editItem(id) {
+                const i = window.cachedItems.find(x => x.id === id);
+                if(!i) return;
+                
+                document.getElementById('i_id').value = i.id;
+                document.getElementById('i_name').value = i.name;
+                document.getElementById('i_desc').value = i.description || '';
+                document.getElementById('i_type').value = i.item_type || i.type;
+                document.getElementById('i_grade').value = i.grade || '';
+                
+                // ✅ NOVO: Preencher campos de equipamento
+                if (i.is_equipable) {
+                    document.getElementById('equipableFields').style.display = 'block';
+                    document.getElementById('i_isEquipable').checked = true;
+                    document.getElementById('slotSelectContainer').style.display = 'block';
+                    document.getElementById('i_equipSlot').value = i.equip_slot || '';
+                }
+                
+                toggleEquipableFields();
+            }
+            </script>
+
             <div class="col-md-8">
                 <div class="card p-0">
                     <table class="table table-hover mb-0">
@@ -171,29 +522,6 @@
             </div>
         </div>
     </div>
-
-    <div id="visualSection" style="display: none;">
-    <div class="row">
-        <div class="col-md-4">
-            
-            <!-- ✅ NOVO: Seletor de Modo -->
-            <div class="card p-4 mb-3">
-                <h5 class="text-warning mb-3">🎯 Modo de Configuração</h5>
-                <label>Configurar para:</label>
-                <select id="visualModeSelect" class="form-select mb-2" onchange="switchVisualMode()">
-                    <option value="global">Config Global (Todos os Players)</option>
-                    <option value="item">Item Específico</option>
-                </select>
-                
-                <!-- Container que aparece quando item for selecionado -->
-                <div id="itemSelectorContainer" style="display: none;">
-                    <label>Selecionar Item:</label>
-                    <select id="visualItemSelect" class="form-select mb-2" onchange="loadItemVisualConfig()">
-                        <option value="">Carregando...</option>
-                    </select>
-                    <small class="text-muted">Camadas serão salvas para este item específico</small>
-                </div>
-            </div>
 
     <!-- ==================== MONSTERS TAB ==================== -->
     <div id="monstersSection" style="display: none;">
@@ -233,49 +561,73 @@
 
 
 
-    <!-- ==================== VISUAL SYSTEM TAB ==================== -->
-    <div id="visualSection" style="display: none;">
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card p-4 mb-3">
-                    <h5 class="text-info mb-3">📦 Adicionar Camada</h5>
-                    <label>Tipo</label>
-                    <select id="layerTypeSelect" class="form-select mb-2" onchange="loadAssetsForLayer()">
-                        <option value="">Selecione...</option>
-                        <option value="bodies">Corpos</option>
-                        <option value="faces">Olhos</option>
-                        <option value="hats">Chapéus</option>
+ <!-- ==================== VISUAL SYSTEM TAB ==================== -->
+<div id="visualSection" style="display: none;">
+    <div class="row">
+        <div class="col-md-4">
+            
+            <!-- ✅ Seletor de Modo -->
+            <div class="card p-4 mb-3">
+                <h5 class="text-warning mb-3">🎯 Modo de Configuração</h5>
+                <label>Configurar para:</label>
+                <select id="visualModeSelect" class="form-select mb-2" onchange="switchVisualMode()">
+                    <option value="global">Config Global (Todos os Players)</option>
+                    <option value="item">Item Específico</option>
+                </select>
+                
+                <!-- Container que aparece quando item for selecionado -->
+                <div id="itemSelectorContainer" style="display: none;">
+                    <label>Selecionar Item:</label>
+                    <select id="visualItemSelect" class="form-select mb-2" onchange="loadItemVisualConfig()">
+                        <option value="">Carregando...</option>
                     </select>
-                    <label>Asset</label>
-                    <select id="assetSelect" class="form-select mb-3" disabled></select>
-                    <button class="btn btn-primary w-100" onclick="addLayerToTimeline()">➕ Adicionar</button>
-                </div>
-
-                <div class="card p-4">
-                    <h5 class="text-warning mb-3">⚙️ Ajustes da Camada</h5>
-                    <div id="layerControls">
-                        <p class="text-muted">Selecione uma camada</p>
-                    </div>
+                    <small class="text-muted">Camadas serão salvas para este item específico</small>
                 </div>
             </div>
 
-            <div class="col-md-8">
-                <div class="card p-3 mb-3">
-                    <h5>🎬 Timeline de Camadas</h5>
-                    <div id="timeline" class="timeline">
-                        <div class="text-muted" style="margin: auto;">Arraste assets aqui</div>
-                    </div>
-                </div>
+            <!-- ✅ Adicionar Camada -->
+            <div class="card p-4 mb-3">
+                <h5 class="text-info mb-3">📦 Adicionar Camada</h5>
+                <label>Tipo</label>
+                <select id="layerTypeSelect" class="form-select mb-2" onchange="loadAssetsForLayer()">
+                    <option value="">Selecione...</option>
+                    <option value="bodies">Corpos</option>
+                    <option value="faces">Olhos</option>
+                    <option value="hats">Chapéus</option>
+                </select>
+                <label>Asset</label>
+                <select id="assetSelect" class="form-select mb-3" disabled></select>
+                <button class="btn btn-primary w-100" onclick="addLayerToTimeline()">➕ Adicionar</button>
+            </div>
 
-                <div class="card p-0">
-                    <div class="preview-container">
-                        <div id="pixi-preview"></div>
-                    </div>
+            <!-- ✅ Ajustes da Camada -->
+            <div class="card p-4">
+                <h5 class="text-warning mb-3">⚙️ Ajustes da Camada</h5>
+                <div id="layerControls">
+                    <p class="text-muted">Selecione uma camada</p>
                 </div>
-                
-                <div class="text-center mt-3">
-                    <button class="btn btn-success" onclick="saveGlobalConfig()">💾 Salvar Config Global</button>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <!-- ✅ Timeline -->
+            <div class="card p-3 mb-3">
+                <h5>🎬 Timeline de Camadas</h5>
+                <div id="timeline" class="timeline">
+                    <div class="text-muted" style="margin: auto;">Arraste assets aqui</div>
                 </div>
+            </div>
+
+            <!-- ✅ Preview -->
+            <div class="card p-0">
+                <div class="preview-container">
+                    <div id="pixi-preview"></div>
+                </div>
+            </div>
+            
+            <!-- ✅ Botão Salvar -->
+            <div class="text-center mt-3">
+                <button class="btn btn-success" onclick="saveGlobalConfig()">💾 Salvar Config Global</button>
             </div>
         </div>
     </div>
@@ -305,6 +657,7 @@ function switchTab(tab) {
     if (tab === 'items') loadItems();
     if (tab === 'monsters') loadMonsters();
     if (tab === 'visual') initPixi();
+    if (tab === 'users') loadUsersTab(); // ✅ NOVO: carregar aba de usuários
 }
 
 // ============================================
@@ -717,6 +1070,325 @@ async function saveGlobalConfig() {
 
 // INIT
 window.addEventListener('DOMContentLoaded', loadItems);
+
+// ============================================
+// USERS TAB - LOGIC
+// ============================================
+
+
+let currentAccountId = null;
+let currentCharacterId = null;
+
+function loadUsersTab() {
+    console.log('[Users] Tab carregada');
+    // Limpar estado
+    currentAccountId = null;
+    currentCharacterId = null;
+    document.getElementById('userDetailsPanel').style.display = 'none';
+    document.getElementById('userDetailsPlaceholder').style.display = 'block';
+}
+
+// Enter para buscar
+function handleUserSearch(event) {
+    if (event.key === 'Enter') {
+        searchUsers();
+    }
+}
+
+// Buscar usuários
+async function searchUsers() {
+    const query = document.getElementById('userSearchInput').value.trim();
+    
+    if (!query) {
+        alert('Digite algo para buscar');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/api/admin/users?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        
+        const tbody = document.getElementById('usersTableBody');
+        
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Nenhum resultado</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.map(acc => `
+            <tr onclick="loadAccountDetails(${acc.id})" style="cursor: pointer;">
+                <td>${acc.id}</td>
+                <td>${acc.username}</td>
+                <td><span class="badge bg-info">${acc._count?.characters || 0}</span></td>
+            </tr>
+        `).join('');
+        
+        window.cachedAccounts = data;
+    } catch (e) {
+        console.error('[Users] Erro ao buscar:', e);
+        alert('Erro ao buscar usuários');
+    }
+}
+
+// Carregar detalhes da conta
+async function loadAccountDetails(accountId) {
+    currentAccountId = accountId;
+    
+    try {
+        const res = await fetch(`${API_URL}/api/admin/user/${accountId}`);
+        const data = await res.json();
+        
+        // Preencher dados da conta
+        document.getElementById('acc_id').value = data.id;
+        document.getElementById('acc_username').value = data.username;
+        document.getElementById('acc_created').textContent = new Date(data.createdAt).toLocaleString('pt-BR');
+        
+        // Listar personagens
+        const charContainer = document.getElementById('charactersListContainer');
+        
+        if (data.characters.length === 0) {
+            charContainer.innerHTML = '<p class="text-muted">Nenhum personagem criado</p>';
+        } else {
+            charContainer.innerHTML = data.characters.map(char => `
+                <div class="card mb-2" style="background: #2a2a2a; cursor: pointer;" onclick="loadCharacterEditor(${char.id})">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>${char.char_name}</strong>
+                                <span class="badge bg-secondary ms-2">${char.class_type}</span>
+                            </div>
+                            <div>
+                                <span class="badge bg-warning">Lv ${char.level}</span>
+                                <span class="badge bg-success">${char.gold}g</span>
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            HP: ${char.max_hp || 100} | DMG: ${char.damage || 10} | Exp: ${char.experience || 0}
+                        </small>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Mostrar painel
+        document.getElementById('userDetailsPlaceholder').style.display = 'none';
+        document.getElementById('userDetailsPanel').style.display = 'block';
+        document.getElementById('characterEditorPanel').style.display = 'none';
+        
+        window.cachedCharacters = data.characters;
+    } catch (e) {
+        console.error('[Users] Erro ao carregar conta:', e);
+        alert('Erro ao carregar detalhes da conta');
+    }
+}
+
+// Carregar editor de personagem
+async function loadCharacterEditor(charId) {
+    currentCharacterId = charId;
+    
+    try {
+        const res = await fetch(`${API_URL}/api/admin/character/${charId}`);
+        const char = await res.json();
+        
+        // Preencher formulário
+        document.getElementById('char_id').value = char.id;
+        document.getElementById('char_name').value = char.char_name;
+        document.getElementById('char_class').value = char.class_type;
+        document.getElementById('char_level').value = char.level;
+        document.getElementById('char_exp').value = char.experience || 0;
+        document.getElementById('char_gold').value = char.gold || 0;
+        document.getElementById('char_maxHp').value = char.max_hp || 100;
+        document.getElementById('char_damage').value = char.damage || 10;
+        document.getElementById('char_defense').value = char.defense || 0;
+        document.getElementById('char_eyeType').value = char.eye_type_id || 1;
+        document.getElementById('char_bodyColor').value = char.body_color || '#FF6B6B';
+        
+        // Status online/offline
+        const status = char.session_id ? 'Online 🟢' : 'Offline 🔴';
+        document.getElementById('char_status').textContent = status;
+        
+        // Mostrar editor
+        document.getElementById('characterEditorPanel').style.display = 'block';
+        switchCharTab('data');
+        
+        // Carregar inventário
+        loadCharacterInventory(charId);
+        
+        window.currentCharacterData = char;
+    } catch (e) {
+        console.error('[Users] Erro ao carregar personagem:', e);
+        alert('Erro ao carregar personagem');
+    }
+}
+
+// Fechar editor
+function closeCharacterEditor() {
+    document.getElementById('characterEditorPanel').style.display = 'none';
+    currentCharacterId = null;
+}
+
+// Alternar abas internas (Dados | Inventário)
+function switchCharTab(tab) {
+    document.getElementById('charDataSection').style.display = tab === 'data' ? 'block' : 'none';
+    document.getElementById('charInventorySection').style.display = tab === 'inventory' ? 'block' : 'none';
+    
+    document.getElementById('charTabData').classList.toggle('active', tab === 'data');
+    document.getElementById('charTabInventory').classList.toggle('active', tab === 'inventory');
+}
+
+// Salvar alterações do personagem
+document.getElementById('characterEditForm').onsubmit = async (e) => {
+    e.preventDefault();
+    
+    const charId = document.getElementById('char_id').value;
+    
+    const updates = {
+        char_name: document.getElementById('char_name').value,
+        class_type: document.getElementById('char_class').value,
+        level: parseInt(document.getElementById('char_level').value),
+        experience: parseInt(document.getElementById('char_exp').value),
+        gold: parseInt(document.getElementById('char_gold').value),
+        max_hp: parseInt(document.getElementById('char_maxHp').value),
+        damage: parseInt(document.getElementById('char_damage').value),
+        defense: parseInt(document.getElementById('char_defense').value),
+        eye_type_id: parseInt(document.getElementById('char_eyeType').value),
+        body_color: document.getElementById('char_bodyColor').value
+    };
+    
+    try {
+        const res = await fetch(`${API_URL}/api/admin/character/${charId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        
+        if (res.ok) {
+            alert('✅ Personagem atualizado com sucesso!');
+            loadAccountDetails(currentAccountId); // Recarregar lista
+        } else {
+            alert('❌ Erro ao salvar');
+        }
+    } catch (e) {
+        console.error('[Users] Erro ao salvar:', e);
+        alert('❌ Erro de conexão');
+    }
+};
+
+// Carregar inventário
+async function loadCharacterInventory(charId) {
+    try {
+        const res = await fetch(`${API_URL}/api/admin/character/${charId}/inventory`);
+        const items = await res.json();
+        
+        const tbody = document.getElementById('inventoryTableBody');
+        
+        if (items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Inventário vazio</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = items.map(item => `
+            <tr>
+                <td>${item.slot_position}</td>
+                <td><code>${item.item_id}</code></td>
+                <td>${item.quantity}</td>
+                <td>${item.is_equipped ? '✅' : '❌'}</td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="editItem(${item.id})">✏️</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteItem(${item.id})">🗑️</button>
+                </td>
+            </tr>
+        `).join('');
+        
+        window.cachedInventory = items;
+    } catch (e) {
+        console.error('[Users] Erro ao carregar inventário:', e);
+    }
+}
+
+// Abrir modal de adicionar item
+function openAddItemModal() {
+    const modal = new bootstrap.Modal(document.getElementById('addItemModal'));
+    modal.show();
+}
+
+// Adicionar item
+document.getElementById('addItemForm').onsubmit = async (e) => {
+    e.preventDefault();
+    
+    const itemId = document.getElementById('modal_itemId').value;
+    const quantity = parseInt(document.getElementById('modal_quantity').value);
+    const slot = document.getElementById('modal_slot').value;
+    
+    try {
+        const res = await fetch(`${API_URL}/api/admin/character/${currentCharacterId}/item`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                itemId,
+                quantity,
+                slotPosition: slot ? parseInt(slot) : null
+            })
+        });
+        
+        if (res.ok) {
+            alert('✅ Item adicionado!');
+            bootstrap.Modal.getInstance(document.getElementById('addItemModal')).hide();
+            loadCharacterInventory(currentCharacterId);
+        } else {
+            alert('❌ Erro ao adicionar item');
+        }
+    } catch (e) {
+        console.error('[Users] Erro:', e);
+        alert('❌ Erro de conexão');
+    }
+};
+
+// Editar item (simplificado)
+function editItem(itemId) {
+    const item = window.cachedInventory.find(i => i.id === itemId);
+    if (!item) return;
+    
+    const newQty = prompt('Nova quantidade:', item.quantity);
+    if (!newQty) return;
+    
+    updateItemQuantity(itemId, parseInt(newQty));
+}
+
+async function updateItemQuantity(itemId, quantity) {
+    try {
+        const res = await fetch(`${API_URL}/api/admin/item/${itemId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quantity })
+        });
+        
+        if (res.ok) {
+            alert('✅ Atualizado!');
+            loadCharacterInventory(currentCharacterId);
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+// Deletar item
+async function deleteItem(itemId) {
+    if (!confirm('Tem certeza que deseja remover este item?')) return;
+    
+    try {
+        const res = await fetch(`${API_URL}/api/admin/item/${itemId}`, {
+            method: 'DELETE'
+        });
+        
+        if (res.ok) {
+            alert('✅ Item removido!');
+            loadCharacterInventory(currentCharacterId);
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
 </script>
 
 </body>
