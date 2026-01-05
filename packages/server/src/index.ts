@@ -228,9 +228,12 @@ app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<v
         id, name, description, type, grade, stackable, 
         is_equipable, equip_slot, item_type  // ✅ NOVOS CAMPOS
     } = req.body;
+
+    // Log para você ver o que o Admin está enviando de verdade
+    console.log(`💾 Salvando item ${id}: isEquipable=${is_equipable}, slot=${equip_slot}`);
     
     try {
-        await pool.query(`
+        await pool.query(` 
             INSERT INTO item_templates (
                 id, name, description, type, grade, stackable, 
                 is_equipable, equip_slot, item_type  
@@ -256,6 +259,38 @@ app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<v
     } catch (err) {
         console.error('[Admin] Error saving item:', err);
         res.status(500).json({ error: 'Failed to save item' });
+    }
+});
+
+app.get('/api/items', async (req: Request, res: Response): Promise<void> => {
+    try {
+        // Buscamos todos os campos para evitar erro de "coluna não existe"
+        const result = await pool.query('SELECT * FROM item_templates');
+        
+        // Formatamos os dados para o padrão que o Client/Frontend espera
+        const formattedItems = result.rows.map(item => {
+            return {
+                // Tenta mapear o ID de qualquer uma das variações (item_id, itemId ou id)
+                id: item.item_id || item.itemId || item.id,
+                name: item.name,
+                description: item.description,
+                type: item.type,
+                grade: item.grade,
+                stackable: item.stackable,
+                // Mapeia os campos booleanos e slots
+                isEquipable: item.is_equipable === true,
+                equipSlot: item.equip_slot,
+                itemType: item.item_type || item.type,
+                // Dados extras (stats como dano, defesa, etc)
+                data: item.data || {}
+            };
+        });
+
+        console.log(`[API] Enviando ${formattedItems.length} templates de itens para o cliente.`);
+        res.json(formattedItems);
+    } catch (err) {
+        console.error('[API] Erro ao buscar itens para o client:', err);
+        res.status(500).json({ error: 'Erro interno ao carregar templates de itens' });
     }
 });
 
@@ -739,8 +774,29 @@ async function loadGameDataFromDB() {
 
     MonsterRegistry.setTemplates(fullMonsterTemplates);
 
-    const itemsRes = await pool.query('SELECT * FROM item_templates');
-    ItemRegistry.setTemplates(itemsRes.rows); 
+const itemsRes = await pool.query(`SELECT * FROM item_templates`); // Busca tudo sem nomear colunas
+
+console.info(`📦 Carregados ${itemsRes.rowCount} itens do banco`);
+
+// Mapeamos os dados independente do nome da coluna (item_id ou itemId)
+const formattedItems = itemsRes.rows.map(item => {
+    // Tenta pegar o ID de qualquer uma das variações possíveis
+    const finalId = item.item_id || item.itemId || item.id;
+    
+    if (item.is_equipable || item.isEquipable) {
+        console.info(`   ✓ ${finalId} → equipSlot: ${item.equip_slot || item.equipSlot}`);
+    }
+
+    return {
+        ...item,
+        id: finalId, 
+        isEquipable: item.is_equipable ?? item.isEquipable ?? false,
+        equipSlot: item.equip_slot ?? item.equipSlot ?? null,
+        itemType: item.item_type ?? item.itemType ?? item.type
+    };
+});
+
+ItemRegistry.setTemplates(formattedItems);
 
     console.info(`✅ Game data loaded: ${monstersRes.rowCount} monsters, ${itemsRes.rowCount} items.`);
 }
@@ -762,6 +818,8 @@ async function bootstrap() {
     console.info(`🌐 Mode: ${process.env.NODE_ENV || 'development'}\n`);
 
   } catch (err) {
+    console.error('[Admin] Error reloading data:', err);
+    
     console.error("❌ Fatal error during server bootstrap:");
     console.error(err);
     process.exit(1); 

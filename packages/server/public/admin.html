@@ -405,7 +405,14 @@
                             <option value="A">A</option>
                             <option value="S">S</option>
                         </select>
-
+                        <!-- ✅ NOVO: Campo Stackable -->
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="i_stackable">
+                            <label class="form-check-label" for="i_stackable">
+                                📦 Stackable (pode acumular no mesmo slot)
+                            </label>
+                        </div>
+                    
                         <!-- ✅ NOVO: Campos de Equipamento -->
                         <div id="equipableFields" style="display: none;">
                             <div class="form-check mb-2">
@@ -442,9 +449,18 @@
             function toggleEquipableFields() {
                 const type = document.getElementById('i_type').value;
                 const equipableFields = document.getElementById('equipableFields');
+                const stackableCheck = document.getElementById('i_stackable');
                 
+                if (type === 'material' || type === 'consumable') {
+                stackableCheck.checked = true;
+                equipableFields.style.display = 'none';
+                document.getElementById('i_isEquipable').checked = false;
+                document.getElementById('slotSelectContainer').style.display = 'none';
+                }
+
                 // Mostrar campos apenas para weapon, armor, accessory
                 if (type === 'weapon' || type === 'armor' || type === 'accessory') {
+                    stackableCheck.checked = false;
                     equipableFields.style.display = 'block';
                     document.getElementById('i_isEquipable').checked = true;
                     toggleSlotSelect();
@@ -464,64 +480,78 @@
             document.getElementById('itemForm').onsubmit = async (e) => {
                 e.preventDefault();
                 
+                // Captura os valores dos novos campos
                 const isEquipable = document.getElementById('i_isEquipable').checked;
                 const equipSlot = isEquipable ? document.getElementById('i_equipSlot').value : null;
+                const stackable = document.getElementById('i_stackable').checked;
 
-                await fetch(`${API_URL}/api/admin/items/save`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        id: document.getElementById('i_id').value,
-                        name: document.getElementById('i_name').value,
-                        description: document.getElementById('i_desc').value,
-                        type: document.getElementById('i_type').value,
-                        grade: document.getElementById('i_grade').value,
-                        stackable: document.getElementById('i_type').value === 'material',
-                        is_equipable: isEquipable,       // ✅ NOVO
-                        equip_slot: equipSlot,           // ✅ NOVO
-                        item_type: document.getElementById('i_type').value  // ✅ NOVO
-                    })
-                });
-                
-                alert('✅ Item salvo com sucesso!');
-                loadItems();
-            };
+                const itemData = {
+                    id: document.getElementById('i_id').value,
+                    name: document.getElementById('i_name').value,
+                    description: document.getElementById('i_desc').value,
+                    type: document.getElementById('i_type').value,
+                    grade: document.getElementById('i_grade').value,
+                    stackable: stackable,
+                    is_equipable: isEquipable, // ✅ Agora envia true/false em vez de undefined
+                    equip_slot: equipSlot,     // ✅ Agora envia o slot selecionado
+                    item_type: document.getElementById('i_type').value
+                };
 
-            // ✅ ATUALIZAR editItem para preencher novos campos
-            function editItem(id) {
-                const i = window.cachedItems.find(x => x.id === id);
-                if(!i) return;
-                
-                document.getElementById('i_id').value = i.id;
-                document.getElementById('i_name').value = i.name;
-                document.getElementById('i_desc').value = i.description || '';
-                document.getElementById('i_type').value = i.item_type || i.type;
-                document.getElementById('i_grade').value = i.grade || '';
-                
-                // ✅ NOVO: Preencher campos de equipamento
-                if (i.is_equipable) {
-                    document.getElementById('equipableFields').style.display = 'block';
-                    document.getElementById('i_isEquipable').checked = true;
-                    document.getElementById('slotSelectContainer').style.display = 'block';
-                    document.getElementById('i_equipSlot').value = i.equip_slot || '';
+                console.log("📤 Enviando para o servidor:", itemData);
+
+                try {
+                    const res = await fetch(`${API_URL}/api/admin/items/save`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(itemData)
+                    });
+                    
+                    if (res.ok) {
+                        alert('✅ Item salvo com sucesso!');
+                        loadItems(); // Recarrega a lista para refletir mudanças
+                    } else {
+                        alert('❌ Erro ao salvar item no servidor');
+                    }
+                } catch (err) {
+                    console.error("Erro na requisição:", err);
                 }
-                
-                toggleEquipableFields();
-            }
-            </script>
+            };                           
 
-            <div class="col-md-8">
-                <div class="card p-0">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-dark">
-                            <tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Grade</th></tr>
-                        </thead>
-                        <tbody id="itemsTableBody"></tbody>
-                    </table>
+                        // ✅ ATUALIZAR editItem para preencher novos campos
+                        function editItem(id) {
+                            const i = window.cachedItems.find(x => x.id === id);
+                            if(!i) return;
+                            
+                            document.getElementById('i_id').value = i.id;
+                            document.getElementById('i_name').value = i.name;
+                            document.getElementById('i_desc').value = i.description || '';
+                            document.getElementById('i_type').value = i.item_type || i.type;
+                            document.getElementById('i_grade').value = i.grade || '';
+                            
+                            // ✅ NOVO: Preencher campos de equipamento
+                            if (i.is_equipable) {
+                                document.getElementById('equipableFields').style.display = 'block';
+                                document.getElementById('i_isEquipable').checked = true;
+                                document.getElementById('slotSelectContainer').style.display = 'block';
+                                document.getElementById('i_equipSlot').value = i.equip_slot || '';
+                            }
+                            
+                            toggleEquipableFields();
+                        }
+                        </script>
+
+                        <div class="col-md-8">
+                            <div class="card p-0">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-dark">
+                                        <tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Grade</th></tr>
+                                    </thead>
+                                    <tbody id="itemsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-    </div>
 
     <!-- ==================== MONSTERS TAB ==================== -->
     <div id="monstersSection" style="display: none;">
@@ -647,6 +677,7 @@ let layerSprites = new Map();
 // ============================================
 // TAB SWITCHING
 // ============================================
+// ✅ Garantir que cachedItems seja inicializado ao carregar a aba
 function switchTab(tab) {
     document.querySelectorAll('[id$="Section"]').forEach(s => s.style.display = 'none');
     document.getElementById(tab + 'Section').style.display = 'block';
@@ -654,10 +685,12 @@ function switchTab(tab) {
     document.querySelectorAll('.nav-link').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
 
-    if (tab === 'items') loadItems();
+    if (tab === 'items') {
+        loadItems(); // ✅ Sempre recarregar ao entrar na aba
+    }
     if (tab === 'monsters') loadMonsters();
     if (tab === 'visual') initPixi();
-    if (tab === 'users') loadUsersTab(); // ✅ NOVO: carregar aba de usuários
+    if (tab === 'users') loadUsersTab();
 }
 
 // ============================================
@@ -666,12 +699,18 @@ function switchTab(tab) {
 async function loadItems() {
     const res = await fetch(`${API_URL}/api/admin/items`);
     const data = await res.json();
+    
+    // ✅ CRÍTICO: Cachear ANTES de renderizar
+    window.cachedItems = data;
+    
     document.getElementById('itemsTableBody').innerHTML = data.map(i => `
-        <tr onclick="editItem('${i.id}')">
-            <td>${i.id}</td><td>${i.name}</td><td>${i.type}</td><td>${i.grade || '-'}</td>
+        <tr onclick="editItemTemplate('${i.id}')" style="cursor: pointer;">
+            <td>${i.id}</td>
+            <td>${i.name}</td>
+            <td>${i.item_type || i.type}</td>
+            <td>${i.grade || '-'}</td>
         </tr>
     `).join('');
-    window.cachedItems = data;
 }
 
 document.getElementById('itemForm').onsubmit = async (e) => {
@@ -692,15 +731,50 @@ document.getElementById('itemForm').onsubmit = async (e) => {
     loadItems();
 };
 
-function editItem(id) {
-    const i = window.cachedItems.find(x => x.id === id);
-    if(!i) return;
-    document.getElementById('i_id').value = i.id;
-    document.getElementById('i_name').value = i.name;
-    document.getElementById('i_desc').value = i.description || '';
-    document.getElementById('i_type').value = i.type;
-    document.getElementById('i_grade').value = i.grade || '';
+function editItemTemplate(id) {
+    // ✅ Verificação de segurança
+    if (!window.cachedItems || !Array.isArray(window.cachedItems)) {
+        console.error('[Admin] cachedItems não inicializado');
+        loadItems();
+        return;
+    }
+
+    const item = window.cachedItems.find(x => x.id === id);
+    
+    if (!item) {
+        console.error('[Admin] Item não encontrado:', id);
+        return;
+    }
+    
+    // Preencher campos básicos
+    document.getElementById('i_id').value = item.id;
+    document.getElementById('i_name').value = item.name;
+    document.getElementById('i_desc').value = item.description || '';
+    document.getElementById('i_type').value = item.item_type || item.type || 'material';
+    document.getElementById('i_grade').value = item.grade || '';
+    
+    // ✅ NOVO: Preencher campo stackable
+    document.getElementById('i_stackable').checked = item.stackable || false;
+    
+    // ✅ Preencher campos de equipamento
+    const equipableFields = document.getElementById('equipableFields');
+    const isEquipable = item.is_equipable || false;
+    
+    if (isEquipable && item.equip_slot) {
+        equipableFields.style.display = 'block';
+        document.getElementById('i_isEquipable').checked = true;
+        document.getElementById('slotSelectContainer').style.display = 'block';
+        document.getElementById('i_equipSlot').value = item.equip_slot;
+    } else {
+        equipableFields.style.display = 'none';
+        document.getElementById('i_isEquipable').checked = false;
+        document.getElementById('slotSelectContainer').style.display = 'none';
+    }
+    
+    // ✅ Trigger para atualizar UI
+    toggleEquipableFields();
 }
+
 
 // ============================================
 // MONSTERS LOGIC
@@ -1294,7 +1368,7 @@ async function loadCharacterInventory(charId) {
                 <td>${item.quantity}</td>
                 <td>${item.is_equipped ? '✅' : '❌'}</td>
                 <td>
-                    <button class="btn btn-sm btn-warning" onclick="editItem(${item.id})">✏️</button>
+                    <button class="btn btn-sm btn-warning" onclick="editPlayerInventoryItem(${item.id})">✏️</button>
                     <button class="btn btn-sm btn-danger" onclick="deleteItem(${item.id})">🗑️</button>
                 </td>
             </tr>
@@ -1345,7 +1419,7 @@ document.getElementById('addItemForm').onsubmit = async (e) => {
 };
 
 // Editar item (simplificado)
-function editItem(itemId) {
+function editPlayerInventoryItem(itemId) {
     const item = window.cachedInventory.find(i => i.id === itemId);
     if (!item) return;
     

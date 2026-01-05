@@ -7,21 +7,21 @@ export class ItemRegistry {
     /**
      * Agora aceita dados externos (do Banco de Dados)
      */
-    public static setTemplates(templates: any[]) {
-        this.items.clear();
-        
-        // 1. Opcional: Carregar itens fixos do código (items-config.ts)
-        Object.entries(ITEMS).forEach(([key, val]) => {
-            this.items.set(key, val);
-        });
+public static setTemplates(templates: any[]) {
+    this.items.clear();
+    
+    // NÃO carregue mais do arquivo ITEMS (JSON) se quiser usar apenas o Banco
+    // Object.entries(ITEMS).forEach(([key, val]) => { ... }); 
 
-        // 2. Adicionar os itens vindos do Banco de Dados
-        templates.forEach(item => {
-        this.items.set(item.id, {
+    templates.forEach(item => {
+        const id = item.item_id || item.itemId || item.id;
+        this.items.set(id, {
             ...item,
-            equipSlot: item.equip_slot,      // ← NOVO
-            itemType: item.item_type,         // ← NOVO
-            isEquipable: item.is_equipable    // ← NOVO
+            id: id,
+           // Garante que as propriedades existam mesmo que o JSON venha com nomes diferentes
+            isEquipable: item.isEquipable ?? item.is_equipable ?? false,
+            equipSlot: item.equipSlot ?? item.equip_slot ?? null,
+            grade: item.grade ?? item.item_grade // Resolve a confusão de nomes de grade
         });
     });
 
@@ -29,8 +29,17 @@ export class ItemRegistry {
         
         if (typeof process !== 'undefined' && process.release?.name === 'node') {
             console.log(`✅ [ItemRegistry] ${this.items.size} itens sincronizados do banco.`);
-        }
+        // Log de itens equipáveis
+        let equipCount = 0;
+        this.items.forEach((item, id) => {
+            if (item.isEquipable) {
+                equipCount++;
+                console.log(`   📌 ${id} → slot: ${item.equipSlot}, type: ${item.itemType}`);
+            }
+        });
+        console.log(`   Total equipáveis: ${equipCount}`);
     }
+}
 
     /**
      * Mantemos o load() antigo apenas como fallback se você ainda usar o JSON

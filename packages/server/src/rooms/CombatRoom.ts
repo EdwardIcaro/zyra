@@ -439,6 +439,9 @@ async onJoin(client: Client, options: any) {
     try {
       const itemsRes = await db.query('SELECT * FROM items WHERE player_id = $1', [charId]);
       state.inventory.slots.clear();
+
+      console.log(`[CombatRoom] Carregando ${itemsRes.rows.length} itens para char ${charId}`);
+
       itemsRes.rows.forEach(row => {
         if (row && row.slot_position !== null) {
           const slot = new InventorySlot();
@@ -446,8 +449,16 @@ async onJoin(client: Client, options: any) {
           slot.quantity = row.quantity;
           slot.slotIndex = row.slot_position;
           state.inventory.slots.set(String(row.slot_position), slot);
-        }
-      });
+
+          // ✅ NOVO: Verificar se o item existe no registry
+          const template = ItemRegistry.getTemplate(row.item_id);
+          if (!template) {
+            console.warn(`⚠️ [CombatRoom] Item ${row.item_id} não encontrado no registry!`);
+            } else if (template.isEquipable) {
+            console.log(`   ✓ Item equipável: ${row.item_id} → slot: ${template.equipSlot}`);
+}
+}
+        });
     } catch (e: any) {
       console.error("❌ Erro SyncDB:", e.message);
     }

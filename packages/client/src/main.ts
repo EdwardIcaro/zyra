@@ -2,6 +2,7 @@
 
 import { Application, Assets } from 'pixi.js';
 import { Game } from './game/Game';
+import { ItemRegistry } from '@zyra/shared';
 
 const API_URL = 'http://localhost:2567';
 
@@ -113,6 +114,25 @@ async function init() {
 window.addEventListener('mousedown', () => {
     window.focus();
 });
+
+async function syncGameData() {
+    try {
+        console.log("📦 Sincronizando templates com o servidor...");
+        const response = await fetch('http://localhost:2567/api/items');
+        const items = await response.json();
+        
+        // Alimenta o registro do cliente com os dados do banco
+        ItemRegistry.setTemplates(items);
+        (window as any).ItemRegistry = ItemRegistry; // Adicione isso para conseguir testar no console
+        
+        console.log(`✅ ${items.length} itens carregados do servidor.`);
+    } catch (e) {
+        console.error("❌ Falha ao sincronizar itens:", e);
+    }
+}
+
+// Chame esta função ANTES de abrir o inventário
+syncGameData();
 
 // Iniciar
 init();
