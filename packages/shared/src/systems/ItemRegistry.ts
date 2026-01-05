@@ -1,4 +1,4 @@
-import { ITEMS } from '../constants/items-config';
+
 
 export class ItemRegistry {
     private static items: Map<string, any> = new Map();
@@ -7,29 +7,36 @@ export class ItemRegistry {
     /**
      * Agora aceita dados externos (do Banco de Dados)
      */
+
 public static setTemplates(templates: any[]) {
-    this.items.clear();
-    
-    // NÃO carregue mais do arquivo ITEMS (JSON) se quiser usar apenas o Banco
-    // Object.entries(ITEMS).forEach(([key, val]) => { ... }); 
+    this.items.clear();   
 
     templates.forEach(item => {
-        const id = item.item_id || item.itemId || item.id;
-        this.items.set(id, {
-            ...item,
+        const id = item.id;
+        
+        // ✅ CRÍTICO: Garantir que campos estejam corretos
+            const processedItem = {
             id: id,
-           // Garante que as propriedades existam mesmo que o JSON venha com nomes diferentes
-            isEquipable: item.isEquipable ?? item.is_equipable ?? false,
-            equipSlot: item.equipSlot ?? item.equip_slot ?? null,
-            grade: item.grade ?? item.item_grade // Resolve a confusão de nomes de grade
-        });
+            name: item.name,
+            description: item.description,
+            type: item.type,
+            grade: item.grade,
+            stackable: item.stackable === true,
+            isEquipable: item.isEquipable === true,
+            equipSlot: item.equipSlot || null,
+            itemType: item.itemType || item.type,
+            data: item.data || {}
+            };
+        
+        this.items.set(id, processedItem);
     });
 
-        this.initialized = true;
+    this.initialized = true;
+    
+    if (typeof process !== 'undefined' && process.release?.name === 'node') {
+        console.log(`✅ [ItemRegistry] ${this.items.size} itens sincronizados do banco.`);
         
-        if (typeof process !== 'undefined' && process.release?.name === 'node') {
-            console.log(`✅ [ItemRegistry] ${this.items.size} itens sincronizados do banco.`);
-        // Log de itens equipáveis
+        // ✅ Log de itens equipáveis
         let equipCount = 0;
         this.items.forEach((item, id) => {
             if (item.isEquipable) {
@@ -48,18 +55,22 @@ public static setTemplates(templates: any[]) {
     public static load() {
         if (this.initialized) return;
         
-        // Carrega apenas as constantes locais se o banco ainda não injetou nada
-        Object.entries(ITEMS).forEach(([key, val]) => {
-            this.items.set(key, val);
-        });
         
         this.initialized = true;
+        console.log('[ItemRegistry] Inicializado (aguardando dados do banco)');
     }
 
     public static getTemplate(itemId: string) {
-        // Se ainda não foi inicializado pelo banco ou pelo config, tenta carregar locais
         if (!this.initialized) this.load();
-        return this.items.get(itemId);
+        
+        const template = this.items.get(itemId);
+        
+        // ✅ NOVO: Log quando item não for encontrado
+        if (!template && typeof process !== 'undefined') {
+            console.warn(`⚠️ [ItemRegistry] Item "${itemId}" não encontrado no registry`);
+        }
+        
+        return template;
     }
 
     public static getAllTemplates() {

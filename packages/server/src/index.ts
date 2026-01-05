@@ -223,20 +223,34 @@ app.get('/api/admin/items', async (req: Request, res: Response): Promise<void> =
 });
 
 // Salvar/Atualizar Item
+// ✅ SUBSTITUIR endpoint completamente
 app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<void> => {
     const { 
         id, name, description, type, grade, stackable, 
-        is_equipable, equip_slot, item_type  // ✅ NOVOS CAMPOS
+        is_equipable, equip_slot, item_type
     } = req.body;
-
-    // Log para você ver o que o Admin está enviando de verdade
-    console.log(`💾 Salvando item ${id}: isEquipable=${is_equipable}, slot=${equip_slot}`);
+    
+    // ✅ NOVO: Log detalhado ANTES de salvar
+    console.log(`💾 Salvando item ${id}:`, {
+        is_equipable,
+        equip_slot,
+        stackable,
+        item_type
+    });
+    
+    // ✅ VALIDAÇÃO: Equipável sem slot é inválido
+    if (is_equipable && !equip_slot) {
+        res.status(400).json({ 
+            error: 'Item equipável precisa ter um slot definido' 
+        });
+        return;
+    }
     
     try {
-        await pool.query(` 
+        const result = await pool.query(`
             INSERT INTO item_templates (
                 id, name, description, type, grade, stackable, 
-                is_equipable, equip_slot, item_type  
+                is_equipable, equip_slot, item_type
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (id) DO UPDATE SET
@@ -248,49 +262,72 @@ app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<v
                 is_equipable = EXCLUDED.is_equipable,
                 equip_slot = EXCLUDED.equip_slot,
                 item_type = EXCLUDED.item_type
+            RETURNING *
         `, [
-            id, name, description, type, grade, stackable,
-            is_equipable || false,  // ✅ NOVO
-            equip_slot || null,     // ✅ NOVO
-            item_type || type       // ✅ NOVO
+            id, 
+            name, 
+            description, 
+            type, 
+            grade || null,          // ✅ MUDOU: null se vazio
+            stackable || false,     // ✅ MUDOU: sempre boolean
+            is_equipable || false,  // ✅ MUDOU: sempre boolean
+            equip_slot || null,     // ✅ MUDOU: null se vazio
+            item_type || type       // ✅ MUDOU: fallback para type
         ]);
         
-        res.json({ success: true });
-    } catch (err) {
-        console.error('[Admin] Error saving item:', err);
-        res.status(500).json({ error: 'Failed to save item' });
+        // ✅ NOVO: Log do que foi salvo
+        console.log('✅ Item salvo no banco:', result.rows[0]);
+        
+        // ✅ NOVO: Hot reload automático
+        await loadGameDataFromDB();
+        
+        res.json({ 
+            success: true, 
+            item: result.rows[0]  // ✅ NOVO: retornar o item salvo
+        });
+    } catch (err: any) {
+        console.error('[Admin] Erro ao salvar item:', err.message);
+        res.status(500).json({ error: 'Falha ao salvar no banco de dados' });
     }
 });
 
 app.get('/api/items', async (req: Request, res: Response): Promise<void> => {
     try {
-        // Buscamos todos os campos para evitar erro de "coluna não existe"
-        const result = await pool.query('SELECT * FROM item_templates');
+        const result = await pool.query(`
+            SELECT 
+                id,
+                name,
+                description,
+                type,
+                grade,
+                stackable,
+                is_equipable,
+                equip_slot,
+                item_type,
+                data
+            FROM item_templates
+            ORDER BY id ASC
+        `);
         
-        // Formatamos os dados para o padrão que o Client/Frontend espera
-        const formattedItems = result.rows.map(item => {
-            return {
-                // Tenta mapear o ID de qualquer uma das variações (item_id, itemId ou id)
-                id: item.item_id || item.itemId || item.id,
-                name: item.name,
-                description: item.description,
-                type: item.type,
-                grade: item.grade,
-                stackable: item.stackable,
-                // Mapeia os campos booleanos e slots
-                isEquipable: item.is_equipable === true,
-                equipSlot: item.equip_slot,
-                itemType: item.item_type || item.type,
-                // Dados extras (stats como dano, defesa, etc)
-                data: item.data || {}
-            };
-        });
-
+        // ✅ Formatar para o client
+        const formattedItems = result.rows.map(item => ({
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            type: item.type,
+            grade: item.grade,
+            stackable: item.stackable === true,
+            isEquipable: item.is_equipable === true,
+            equipSlot: item.equip_slot || null,
+            itemType: item.item_type || item.type,
+            data: item.data || {}
+        }));
+        
         console.log(`[API] Enviando ${formattedItems.length} templates de itens para o cliente.`);
         res.json(formattedItems);
     } catch (err) {
-        console.error('[API] Erro ao buscar itens para o client:', err);
-        res.status(500).json({ error: 'Erro interno ao carregar templates de itens' });
+        console.error('[API] Erro ao buscar itens:', err);
+        res.status(500).json({ error: 'Erro ao carregar itens' });
     }
 });
 
@@ -749,9 +786,11 @@ app.get('/health', (_req, res) => {
 
 // ==================== DATA LOADING ====================
 
+// ✅ SUBSTITUIR função completamente
 async function loadGameDataFromDB() {
     console.info("📦 Loading game templates from database...");
 
+    // Carregar Monstros
     const monstersRes = await pool.query('SELECT * FROM monster_templates');
     const dropsRes = await pool.query('SELECT * FROM monster_drops');
 
@@ -774,31 +813,56 @@ async function loadGameDataFromDB() {
 
     MonsterRegistry.setTemplates(fullMonsterTemplates);
 
-const itemsRes = await pool.query(`SELECT * FROM item_templates`); // Busca tudo sem nomear colunas
-
-console.info(`📦 Carregados ${itemsRes.rowCount} itens do banco`);
-
-// Mapeamos os dados independente do nome da coluna (item_id ou itemId)
-const formattedItems = itemsRes.rows.map(item => {
-    // Tenta pegar o ID de qualquer uma das variações possíveis
-    const finalId = item.item_id || item.itemId || item.id;
+    // ✅ CRÍTICO: Query explícita de TODOS os campos
+    const itemsRes = await pool.query(`
+        SELECT 
+            id,
+            name,
+            description,
+            type,
+            grade,
+            stackable,
+            is_equipable,
+            equip_slot,
+            item_type,
+            data
+        FROM item_templates
+        ORDER BY id ASC
+    `);
     
-    if (item.is_equipable || item.isEquipable) {
-        console.info(`   ✓ ${finalId} → equipSlot: ${item.equip_slot || item.equipSlot}`);
-    }
+    console.info(`📦 Carregados ${itemsRes.rowCount} itens do banco`);
+    
+    // ✅ NOVO: Log CADA item para ver o que está vindo
+    const formattedItems = itemsRes.rows.map(item => {
+        // ✅ CRÍTICO: Normalizar nomes de campos
+        const normalized = {
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            type: item.type,
+            grade: item.grade,
+            stackable: item.stackable === true,           // ✅ Forçar boolean
+            isEquipable: item.is_equipable === true,      // ✅ Forçar boolean
+            equipSlot: item.equip_slot || null,           // ✅ Garantir null se vazio
+            itemType: item.item_type || item.type,
+            data: item.data || {}
+        };
+        
+        // ✅ NOVO: Log de cada item equipável
+        if (normalized.isEquipable) {
+            console.info(`   ✓ ${normalized.id} → equipSlot: ${normalized.equipSlot}, type: ${normalized.itemType}`);
+        }
+        
+        return normalized;
+    });
+    
+    ItemRegistry.setTemplates(formattedItems);
 
-    return {
-        ...item,
-        id: finalId, 
-        isEquipable: item.is_equipable ?? item.isEquipable ?? false,
-        equipSlot: item.equip_slot ?? item.equipSlot ?? null,
-        itemType: item.item_type ?? item.itemType ?? item.type
-    };
-});
-
-ItemRegistry.setTemplates(formattedItems);
-
-    console.info(`✅ Game data loaded: ${monstersRes.rowCount} monsters, ${itemsRes.rowCount} items.`);
+    console.info(`✅ Game data loaded: ${monstersRes.rowCount} monsters, ${formattedItems.length} items.`);
+    
+    // ✅ NOVO: Log final de itens equipáveis
+    const equipableCount = formattedItems.filter(i => i.isEquipable).length;
+    console.info(`   📌 Total de itens equipáveis: ${equipableCount}`);
 }
 
 // ==================== BOOTSTRAP ====================

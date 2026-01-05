@@ -476,46 +476,60 @@
                 document.getElementById('slotSelectContainer').style.display = isEquipable ? 'block' : 'none';
             }
 
-            // ✅ ATUALIZAR submit do formulário
-            document.getElementById('itemForm').onsubmit = async (e) => {
-                e.preventDefault();
-                
-                // Captura os valores dos novos campos
-                const isEquipable = document.getElementById('i_isEquipable').checked;
-                const equipSlot = isEquipable ? document.getElementById('i_equipSlot').value : null;
-                const stackable = document.getElementById('i_stackable').checked;
+// ✅ CORREÇÃO CRÍTICA: Garantir que o submit capture TODOS os campos
+document.getElementById('itemForm').onsubmit = async (e) => {
+    e.preventDefault();
+    
+    // ✅ Capturar valores dos campos
+    const isEquipable = document.getElementById('i_isEquipable').checked;
+    const equipSlot = document.getElementById('i_equipSlot').value;
+    const stackable = document.getElementById('i_stackable').checked;
+    
+    // ✅ CRÍTICO: Validar se slot foi selecionado quando equipável
+    if (isEquipable && !equipSlot) {
+        alert('⚠️ Selecione um slot de equipamento!');
+        return;
+    }
 
-                const itemData = {
-                    id: document.getElementById('i_id').value,
-                    name: document.getElementById('i_name').value,
-                    description: document.getElementById('i_desc').value,
-                    type: document.getElementById('i_type').value,
-                    grade: document.getElementById('i_grade').value,
-                    stackable: stackable,
-                    is_equipable: isEquipable, // ✅ Agora envia true/false em vez de undefined
-                    equip_slot: equipSlot,     // ✅ Agora envia o slot selecionado
-                    item_type: document.getElementById('i_type').value
-                };
+    const itemData = {
+        id: document.getElementById('i_id').value,
+        name: document.getElementById('i_name').value,
+        description: document.getElementById('i_desc').value,
+        type: document.getElementById('i_type').value,
+        grade: document.getElementById('i_grade').value || null,
+        stackable: stackable,
+        is_equipable: isEquipable,              // ✅ MUDOU: sempre boolean
+        equip_slot: isEquipable ? equipSlot : null,  // ✅ MUDOU: só enviar se equipável
+        item_type: document.getElementById('i_type').value
+    };
+    
+    // ✅ NOVO: Log para debug
+    console.log('📤 Enviando item:', itemData);
 
-                console.log("📤 Enviando para o servidor:", itemData);
-
-                try {
-                    const res = await fetch(`${API_URL}/api/admin/items/save`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(itemData)
-                    });
-                    
-                    if (res.ok) {
-                        alert('✅ Item salvo com sucesso!');
-                        loadItems(); // Recarrega a lista para refletir mudanças
-                    } else {
-                        alert('❌ Erro ao salvar item no servidor');
-                    }
-                } catch (err) {
-                    console.error("Erro na requisição:", err);
-                }
-            };                           
+    try {
+        const res = await fetch(`${API_URL}/api/admin/items/save`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(itemData)
+        });
+        
+        const result = await res.json();
+        
+        if (res.ok) {
+            alert('✅ Item salvo com sucesso!');
+            await loadItems(); // ✅ MUDOU: await para garantir reload
+            
+            // ✅ NOVO: Hot reload automático no servidor
+            await fetch(`${API_URL}/api/admin/reload`, { method: 'POST' });
+        } else {
+            console.error('Erro do servidor:', result);
+            alert('❌ Erro ao salvar: ' + (result.error || 'Desconhecido'));
+        }
+    } catch (err) {
+        console.error('Erro na requisição:', err);
+        alert('❌ Erro de conexão com o servidor');
+    }
+};
 
                         // ✅ ATUALIZAR editItem para preencher novos campos
                         function editItem(id) {
@@ -697,44 +711,43 @@ function switchTab(tab) {
 // ITEMS LOGIC
 // ============================================
 async function loadItems() {
-    const res = await fetch(`${API_URL}/api/admin/items`);
-    const data = await res.json();
-    
-    // ✅ CRÍTICO: Cachear ANTES de renderizar
-    window.cachedItems = data;
-    
-    document.getElementById('itemsTableBody').innerHTML = data.map(i => `
-        <tr onclick="editItemTemplate('${i.id}')" style="cursor: pointer;">
-            <td>${i.id}</td>
-            <td>${i.name}</td>
-            <td>${i.item_type || i.type}</td>
-            <td>${i.grade || '-'}</td>
-        </tr>
-    `).join('');
+    try {
+        // ✅ NOVO: Adicionar timestamp para evitar cache
+        const timestamp = Date.now();
+        const res = await fetch(`${API_URL}/api/admin/items?_t=${timestamp}`);
+        const data = await res.json();
+        
+        // ✅ Cache global
+        window.cachedItems = data;
+        
+        // ✅ NOVO: Log para debug
+        console.log(`📦 Carregados ${data.length} itens do servidor`);
+        data.forEach(item => {
+            if (item.is_equipable || item.isEquipable) {
+                console.log(`   ✓ ${item.id} → slot: ${item.equip_slot || item.equipSlot}`);
+            }
+        });
+        
+        // Renderizar tabela
+        document.getElementById('itemsTableBody').innerHTML = data.map(i => `
+            <tr onclick="editItem('${i.id}')" style="cursor: pointer;">
+                <td>${i.id}</td>
+                <td>${i.name}</td>
+                <td>${i.item_type || i.type}</td>
+                <td>${i.grade || '-'}</td>
+            </tr>
+        `).join('');
+        
+    } catch (err) {
+        console.error('[Admin] Erro ao carregar itens:', err);
+        alert('❌ Erro ao carregar itens do servidor');
+    }
 }
 
-document.getElementById('itemForm').onsubmit = async (e) => {
-    e.preventDefault();
-    await fetch(`${API_URL}/api/admin/items/save`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            id: document.getElementById('i_id').value,
-            name: document.getElementById('i_name').value,
-            description: document.getElementById('i_desc').value,
-            type: document.getElementById('i_type').value,
-            grade: document.getElementById('i_grade').value,
-            stackable: document.getElementById('i_type').value === 'material'
-        })
-    });
-    alert('Item salvo!');
-    loadItems();
-};
-
-function editItemTemplate(id) {
-    // ✅ Verificação de segurança
-    if (!window.cachedItems || !Array.isArray(window.cachedItems)) {
-        console.error('[Admin] cachedItems não inicializado');
+// ✅ MODIFICAR editItem para lidar com ambos os nomes de campos
+function editItem(id) {
+    if (!window.cachedItems) {
+        console.error('[Admin] Cache não inicializado');
         loadItems();
         return;
     }
@@ -746,6 +759,8 @@ function editItemTemplate(id) {
         return;
     }
     
+    console.log('✏️ Editando item:', item);
+    
     // Preencher campos básicos
     document.getElementById('i_id').value = item.id;
     document.getElementById('i_name').value = item.name;
@@ -753,25 +768,26 @@ function editItemTemplate(id) {
     document.getElementById('i_type').value = item.item_type || item.type || 'material';
     document.getElementById('i_grade').value = item.grade || '';
     
-    // ✅ NOVO: Preencher campo stackable
-    document.getElementById('i_stackable').checked = item.stackable || false;
+    // ✅ Stackable
+    const isStackable = item.stackable === true || item.stackable === 'true';
+    document.getElementById('i_stackable').checked = isStackable;
     
-    // ✅ Preencher campos de equipamento
-    const equipableFields = document.getElementById('equipableFields');
-    const isEquipable = item.is_equipable || false;
+    // ✅ Equipável (aceitar ambos os nomes de campo)
+    const isEquipable = item.is_equipable === true || item.isEquipable === true;
+    const equipSlot = item.equip_slot || item.equipSlot || '';
     
-    if (isEquipable && item.equip_slot) {
-        equipableFields.style.display = 'block';
-        document.getElementById('i_isEquipable').checked = true;
+    document.getElementById('i_isEquipable').checked = isEquipable;
+    
+    if (isEquipable && equipSlot) {
+        document.getElementById('equipableFields').style.display = 'block';
         document.getElementById('slotSelectContainer').style.display = 'block';
-        document.getElementById('i_equipSlot').value = item.equip_slot;
+        document.getElementById('i_equipSlot').value = equipSlot;
     } else {
-        equipableFields.style.display = 'none';
-        document.getElementById('i_isEquipable').checked = false;
+        document.getElementById('equipableFields').style.display = 'none';
         document.getElementById('slotSelectContainer').style.display = 'none';
     }
     
-    // ✅ Trigger para atualizar UI
+    // ✅ Trigger UI update
     toggleEquipableFields();
 }
 

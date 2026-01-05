@@ -66,6 +66,29 @@ async function loadAllAssets(): Promise<void> {
 /**
  * Inicialização principal
  */
+async function syncGameData() {
+    try {
+        console.log("📦 Sincronizando templates com o servidor...");
+        const response = await fetch('http://localhost:2567/api/items');
+        const items = await response.json();
+        
+        // Alimenta o registro do cliente com os dados do banco
+        ItemRegistry.setTemplates(items);
+        
+        console.log(`✅ ${items.length} itens carregados do servidor.`);
+        
+        // ✅ Log de itens equipáveis no client
+        items.forEach((item: any) => {
+            if (item.isEquipable) {
+                console.log(`   ✓ ${item.id} → slot: ${item.equipSlot}`);
+            }
+        });
+    } catch (e) {
+        console.error("❌ Falha ao sincronizar itens:", e);
+    }
+}
+
+// ✅ Chamar ANTES de iniciar o jogo
 async function init() {
     const app = new Application();
     
@@ -80,59 +103,35 @@ async function init() {
 
     document.body.appendChild(app.canvas as HTMLCanvasElement);
 
-    // Configurar canvas
     app.canvas.style.position = "absolute";
     app.canvas.style.top = "0";
     app.canvas.style.left = "0";
     app.canvas.style.zIndex = "1";
     
-    // Carregar assets dinamicamente
     try {
         await loadAllAssets();
+        await syncGameData(); // ✅ NOVO: Sincronizar itens do servidor
     } catch (e) {
-        console.error('❌ Falha crítica ao carregar assets!');
+        console.error('❌ Falha crítica ao carregar recursos!');
         alert('Erro ao carregar recursos do jogo. Verifique o console.');
         return;
     }
 
-    // Remover loading screen
     const loading = document.getElementById('loading');
     if (loading) loading.classList.add('hidden');
 
-    // Iniciar jogo
     const game = new Game(app);
     game.start();
 
-    // Resize handler
     window.addEventListener('resize', () => {
         app.renderer.resize(window.innerWidth, window.innerHeight);
         game.onResize(window.innerWidth, window.innerHeight);
     });
 }
 
-// Focus handler
+// ✅ Manter focus handler
 window.addEventListener('mousedown', () => {
     window.focus();
 });
 
-async function syncGameData() {
-    try {
-        console.log("📦 Sincronizando templates com o servidor...");
-        const response = await fetch('http://localhost:2567/api/items');
-        const items = await response.json();
-        
-        // Alimenta o registro do cliente com os dados do banco
-        ItemRegistry.setTemplates(items);
-        (window as any).ItemRegistry = ItemRegistry; // Adicione isso para conseguir testar no console
-        
-        console.log(`✅ ${items.length} itens carregados do servidor.`);
-    } catch (e) {
-        console.error("❌ Falha ao sincronizar itens:", e);
-    }
-}
-
-// Chame esta função ANTES de abrir o inventário
-syncGameData();
-
-// Iniciar
 init();

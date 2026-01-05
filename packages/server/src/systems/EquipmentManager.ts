@@ -28,9 +28,17 @@ equipFromInventory(player: PlayerState, inventorySlotIndex: number): boolean {
         return false;
     }
 
+        // ✅ NOVO: Log detalhado do que foi encontrado
+    console.log(`[EquipmentManager] Tentando equipar "${itemId}":`, {
+        found: !!itemTemplate,
+        isEquipable: itemTemplate?.isEquipable,
+        equipSlot: itemTemplate?.equipSlot,
+        itemType: itemTemplate?.itemType
+    });
+
     // ✅ NOVO: Validar se item é equipável
-    if (!itemTemplate.isEquipable || !itemTemplate.equipSlot) {
-        console.warn(`[EquipmentManager] Item ${itemId} is not equipable`);
+    if (!itemTemplate.isEquipable) {
+        console.warn(`[EquipmentManager] Item ${itemId} is not equipable (isEquipable = ${itemTemplate.isEquipable})`);
         return false;
     }
 
