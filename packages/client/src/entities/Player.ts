@@ -38,7 +38,7 @@ export class Player extends Container {
   // Cache da configuração global
   private static globalLayersConfig: LayerConfig[] | null = null;
 
-  private updateEquipmentVisuals() {
+private updateEquipmentVisuals() {
     if (!this.state.equipment || !this.state.equipment.equipped) return;
 
     // Limpar sprites de equipamento antigos (exceto corpo base)
@@ -53,10 +53,13 @@ export class Player extends Container {
     // Renderizar cada item equipado
     this.state.equipment.equipped.forEach((equippedItem) => {
         const itemTemplate = ItemRegistry.getTemplate(equippedItem.itemId);
-        if (!itemTemplate || !itemTemplate.visualLayers) return;
+        if (!itemTemplate || !itemTemplate.data?.visualLayers) {
+            console.warn(`[Player] Item ${equippedItem.itemId} has no visual layers`);
+            return;
+        }
 
         // ✅ Renderizar camadas visuais do item
-        itemTemplate.visualLayers.forEach((layer: any) => {
+        itemTemplate.data.visualLayers.forEach((layer: any) => {
             this.renderEquipmentLayer(layer, equippedItem.slot);
         });
     });
@@ -77,7 +80,7 @@ private async renderEquipmentLayer(layer: any, slot: string) {
         sprite.rotation = ((layer.rotation || 0) * Math.PI) / 180;
         sprite.zIndex = layer.zIndex || 2;
 
-        // ✅ Aplicar tints específicos (opcional)
+        // Aplicar tints
         if (layer.colorTint && layer.colorTint.startsWith('#')) {
             sprite.tint = parseInt(layer.colorTint.replace('#', '0x'));
         }

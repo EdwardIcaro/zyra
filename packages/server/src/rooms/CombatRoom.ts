@@ -22,7 +22,7 @@ export class CombatRoom extends Room<ZoneRoomState> {
   private inventoryManager = new InventoryManager();
   private equipmentManager = new EquipmentManager();
 
-  async onCreate(options: any) {
+ async onCreate(options: any) {
     this.setState(new ZoneRoomState());
     
     const zoneId = options.zoneId || 'bleeding_plains';
@@ -35,120 +35,143 @@ export class CombatRoom extends Room<ZoneRoomState> {
 
     // --- MENSAGENS DE INVENTÁRIO & EQUIPAMENTO ---
     this.onMessage('inventory:move', (client, data: { from: number; to: number }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (player) this.inventoryManager.moveItem(player, data.from, data.to);
+        const player = this.state.players.get(client.sessionId);
+        if (player) this.inventoryManager.moveItem(player, data.from, data.to);
     });
 
-this.onMessage('equipment:equip', async (client, data: { inventorySlot: number }) => {
-    const player = this.state.players.get(client.sessionId);
-    if (!player) return;
+    // ✅ MENSAGEM DE EQUIPAR (CORRIGIDA)
+    this.onMessage('equipment:equip', async (client, data: { inventorySlot: number }) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player) return;
 
-    try {
-        // Buscar item no banco
-        const charRes = await db.query(
-            'SELECT id FROM characters WHERE char_name = $1', 
-            [player.username]
-        );
-        const charId = charRes.rows[0]?.id;
+        try {
+            // Buscar charId
+            const charRes = await db.query(
+                'SELECT id FROM characters WHERE char_name = $1', 
+                [player.username]
+            );
+            const charId = charRes.rows[0]?.id;
 
-        const itemRes = await db.query(
-            'SELECT * FROM items WHERE player_id = $1 AND slot_position = $2',
-            [charId, data.inventorySlot]
-        );
-
-        if (itemRes.rows.length === 0) {
-            console.warn('[Equip] No item found in slot', data.inventorySlot);
-            return;
-        }
-
-        const item = itemRes.rows[0];
-        
-        // ✅ NOVA LÓGICA: Se item tem visualConfigId, adicionar ao player
-        if (item.visual_config_id) {
-            // Verificar se já não está equipado
-            if (!player.equippedVisualIds.includes(item.visual_config_id)) {
-                player.equippedVisualIds.push(item.visual_config_id);
-                
-                // Atualizar item como equipado no banco
-                await db.query(
-                    'UPDATE items SET is_equipped = true WHERE id = $1',
-                    [item.id]
-                );
-                
-                console.log(`✅ [Equip] ${player.username} equipped visual ${item.visual_config_id}`);
+            if (!charId) {
+                console.error('[Equip] Character not found in DB');
+                return;
             }
+
+            // Buscar item no banco
+            const itemRes = await db.query(
+                'SELECT * FROM items WHERE player_id = $1 AND slot_position = $2',
+                [charId, data.inventorySlot]
+            );
+
+            if (itemRes.rows.length === 0) {
+                console.warn('[Equip] No item found in slot', data.inventorySlot);
+                return;
+            }
+
+            const item = itemRes.rows[0];
+            
+            // ✅ Buscar template para pegar o slot
+            const template = ItemRegistry.getTemplate(item.item_id);
+            
+            if (!template || !template.equipSlot) {
+                console.warn('[Equip] Item has no equipSlot');
+                return;
+            }
+
+            // Equipar
+            const success = this.equipmentManager.equipFromInventory(player, data.inventorySlot);
+
+            if (success) {
+                const targetSlot = template.equipSlot;
+
+                // Salvar no banco
+                await db.query(`
+                    INSERT INTO character_equipment (player_id, slot, item_id)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (player_id, slot) 
+                    DO UPDATE SET item_id = EXCLUDED.item_id
+                `, [charId, targetSlot, item.item_id]);
+
+                // Remover do inventário
+                await db.query('DELETE FROM items WHERE id = $1', [item.id]);
+
+                console.log(`✅ [Equip] ${player.username} equipped ${item.item_id} in ${targetSlot}`);
+            }
+        } catch (err: any) {
+            console.error('[Equip] Error:', err.message);
         }
+    });
 
-        // Chamar lógica antiga de equipamento (stats, etc)
-        this.equipmentManager.equipFromInventory(player, data.inventorySlot);
-    } catch (err: any) {
-        console.error('[Equip] Error:', err.message);
-    }
-});
+    // ✅ MENSAGEM DE DESEQUIPAR
+    this.onMessage('equipment:unequip', async (client, data: { equipmentSlot: string }) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player) return;
 
-this.onMessage('equipment:unequip', async (client, data: { equipmentSlot: string }) => {
-    const player = this.state.players.get(client.sessionId);
-    if (!player) return;
+        try {
+            const charRes = await db.query(
+                'SELECT id FROM characters WHERE char_name = $1', 
+                [player.username]
+            );
+            const charId = charRes.rows[0]?.id;
 
-    try {
-        const charRes = await db.query(
-            'SELECT id FROM characters WHERE char_name = $1', 
-            [player.username]
-        );
-        const charId = charRes.rows[0]?.id;
+            if (!charId) return;
 
-        // Buscar item equipado no slot
-        const itemRes = await db.query(
-            'SELECT * FROM items WHERE player_id = $1 AND is_equipped = true',
-            [charId]
-        );
+            // Buscar item equipado
+            const equippedItem = player.equipment.equipped.get(data.equipmentSlot);
+            if (!equippedItem) {
+                console.warn('[Unequip] No item in slot', data.equipmentSlot);
+                return;
+            }
 
-        for (const item of itemRes.rows) {
-            if (item.visual_config_id && player.equippedVisualIds.includes(item.visual_config_id)) {
-                // ✅ REMOVER DO ARRAY
-                const index = player.equippedVisualIds.indexOf(item.visual_config_id);
-                if (index !== -1) {
-                    player.equippedVisualIds.splice(index, 1);
-                }
+            const itemId = equippedItem.itemId;
 
-                // Atualizar banco
+            // Desequipar
+            const success = this.equipmentManager.unequipToInventory(player, data.equipmentSlot);
+
+            if (success) {
+                // Remover do banco de equipamentos
                 await db.query(
-                    'UPDATE items SET is_equipped = false WHERE id = $1',
-                    [item.id]
+                    'DELETE FROM character_equipment WHERE player_id = $1 AND slot = $2',
+                    [charId, data.equipmentSlot]
                 );
 
-                console.log(`✅ [Unequip] ${player.username} unequipped visual ${item.visual_config_id}`);
+                // Adicionar de volta ao inventário
+                await db.query(`
+                    INSERT INTO items (player_id, item_id, quantity, slot_position, is_equipped)
+                    VALUES ($1, $2, 1, (
+                        SELECT COALESCE(MAX(slot_position), -1) + 1 
+                        FROM items WHERE player_id = $1
+                    ), false)
+                `, [charId, itemId]);
+
+                console.log(`✅ [Unequip] ${player.username} unequipped from ${data.equipmentSlot}`);
             }
+        } catch (err: any) {
+            console.error('[Unequip] Error:', err.message);
         }
+    });
 
-        // Chamar lógica antiga
-        this.equipmentManager.unequipToInventory(player, data.equipmentSlot);
-    } catch (err: any) {
-        console.error('[Unequip] Error:', err.message);
-    }
-});
-
-    // --- MENSAGEM DE COLETA MANUAL (Caso o pickup automático falhe ou seja clicado) ---
+    // --- MENSAGEM DE COLETA MANUAL ---
     this.onMessage('item:pickup', async (client, data: { dropId: string }) => {
        await this.processPickup(client.sessionId, data.dropId);
     });
 
     // --- MOVIMENTO E COMBATE ---
     this.onMessage('move', (client, message: { dx: number, dy: number }) => {
-      this.playerMovements.set(client.sessionId, { dx: message.dx, dy: message.dy });
+        this.playerMovements.set(client.sessionId, { dx: message.dx, dy: message.dy });
     });
 
     this.onMessage('stop', (client) => {
-      this.playerMovements.delete(client.sessionId);
+        this.playerMovements.delete(client.sessionId);
     });
 
     this.onMessage('attack', (client, message: { targetX: number, targetY: number }) => {
-      this.handleAttack(client, message);
+        this.handleAttack(client, message);
     });
 
     this.setSimulationInterval(() => this.update(), 1000 / GAME_CONFIG.TICK_RATE);
     this.initializeSpawns();
-  }
+} // ✅ FECHAR onCreate corretamente
 
   
 

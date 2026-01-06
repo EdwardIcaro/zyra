@@ -25,7 +25,7 @@ export * from './types/equipment'; // ← NOVO
 // Constants
 export * from './constants/game-config';
 export * from './constants/classes-config';
-export * from './constants/items-config';
+// export * from './constants/items-config';
 export * from './constants/zones-config';
 //export * from './constants/monsters-config';
 export * from './constants/spawn-points';

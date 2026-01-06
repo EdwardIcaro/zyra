@@ -1,4 +1,3 @@
-import monstersData from '../data/monsters.json';
 import { MonsterTemplate } from '../types/zones';
 
 export class MonsterRegistry {
@@ -13,19 +12,15 @@ export class MonsterRegistry {
         if (this.initialized) return;
 
         // Carrega diretamente do JSON (monstersData já é um objeto chave-valor)
-        if (monstersData) {
-            Object.entries(monstersData).forEach(([key, val]) => {
-                // Fazemos o typecast para garantir que o JSON siga a interface MonsterTemplate
-                this.monsters.set(key, val as unknown as MonsterTemplate);
-            });
-        }
+        // if (monstersData) {
+        //     Object.entries(monstersData).forEach(([key, val]) => {
+        //         this.monsters.set(key, val as unknown as MonsterTemplate);
+        //     });
+        // }
 
         this.initialized = true;
         
-        // Log apenas no lado do servidor para evitar spam no console do navegador
-        if (typeof process !== 'undefined' && process.release?.name === 'node') {
-            console.log(`✅ [MonsterRegistry] ${this.monsters.size} monstros carregados com sucesso do JSON.`);
-        }
+
     }
 
     public static setTemplates(templates: MonsterTemplate[]) {

@@ -196,7 +196,7 @@ private showMessage(text: string) {
 
     public update(inv: InventoryState, equip: EquipmentState, gold: number) {
         this.lastInvData = inv; // Cache para o hover funcionar
-        this.goldText.text = `Adena: ${gold.toLocaleString()}`;
+        this.goldText.text = `Gold: ${gold.toLocaleString()}`;
 
         // Atualizar Inventário
         inv.slots.forEach((slot: InventorySlot) => {
@@ -210,6 +210,7 @@ private showMessage(text: string) {
         // Atualizar Equipamentos
         this.equipmentSlots.forEach((container, slotName) => {
             if (container.children.length > 2) container.removeChildren(2);
+            
             const item = equip.equipped.get(slotName);
             
             if (item) {

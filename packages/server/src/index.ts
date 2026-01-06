@@ -166,7 +166,7 @@ app.post('/api/admin/visual/save-item-config', async (req: Request, res: Respons
     }
 
     try {
-        // Salvar no campo data do item
+        // ✅ Salvar no campo data do item
         await pool.query(`
             UPDATE item_templates 
             SET data = jsonb_set(
@@ -178,6 +178,10 @@ app.post('/api/admin/visual/save-item-config', async (req: Request, res: Respons
         `, [JSON.stringify(layers), itemId]);
         
         console.info(`[Admin] Visual layers saved for item: ${itemId}`);
+        
+        // ✅ Hot reload automático
+        await loadGameDataFromDB();
+        
         res.json({ success: true });
     } catch (err) {
         console.error('[Admin] Error saving item visual config:', err);
