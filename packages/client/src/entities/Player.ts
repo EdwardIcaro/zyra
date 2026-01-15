@@ -43,7 +43,7 @@ private updateEquipmentVisuals() {
 
     // Limpar sprites de equipamento antigos (exceto corpo base)
     this.layerSprites.forEach((sprite, key) => {
-        if (key !== 'bodies') {  // Preservar corpo
+        if (key !== 'bodies' && key !== 'eyes') {
             this.visualContainer.removeChild(sprite);
             sprite.destroy();
             this.layerSprites.delete(key);
@@ -141,6 +141,28 @@ private async renderEquipmentLayer(layer: any, slot: string) {
 
     this.addChild(this.visualContainer, this.hpBar, this.nameLabel, this.levelLabel);
 
+      // Guardar se equipment/equipped estiver presente antes de anexar listeners
+      const equippedContainer = this.state?.equipment?.equipped;
+      if (equippedContainer) {
+        if (typeof equippedContainer.onAdd === 'function') {
+          equippedContainer.onAdd((item: any) => {
+            this.updateEquipmentVisuals();
+          });
+        }
+
+        if (typeof equippedContainer.onRemove === 'function') {
+          equippedContainer.onRemove(() => {
+            this.updateEquipmentVisuals();
+          });
+        }
+
+        if (typeof equippedContainer.onChange === 'function') {
+          equippedContainer.onChange(() => {
+            this.updateEquipmentVisuals();
+          });
+        }
+      }
+
     // Carregar e renderizar camadas
     this.loadAndRenderLayers();
 
@@ -152,15 +174,10 @@ private async renderEquipmentLayer(layer: any, slot: string) {
       if (this.state.x < this.position.x) this.facingDirection = -1;
       else if (this.state.x > this.position.x) this.facingDirection = 1;
 
-          // Listener para mudanças no equipamento
-      this.state.equipment.equipped.onChange(() => {
-        this.updateEquipmentVisuals();
-      });
-
-      
-      this.updateEquipmentVisuals();
       this.updateVisuals();
     });
+
+    this.updateEquipmentVisuals();
   }
 
   

@@ -21,6 +21,8 @@ export * from './types/zones';
 export * from './types/buffs';
 export * from './types/drops';
 export * from './types/equipment'; // ← NOVO
+export * from './types/spells'; // ← NOVO
+
 
 // Constants
 export * from './constants/game-config';

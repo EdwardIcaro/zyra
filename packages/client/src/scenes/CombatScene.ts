@@ -11,6 +11,9 @@ import { InventoryUI } from '../ui/InventoryUI';
 import { ItemTooltip } from '../ui/ItemTooltip';
 import { ParticleSystem } from '../effects/ParticleSystem';
 import { DamageNumberSystem } from '../effects/DamageNumberSystem';
+import { GestureRecognizer, GestureType } from '../systems/GestureRecognizer';
+import { GestureTrailUI } from '../ui/GestureTrailUI';
+import { getSpellFromGesture, SpellType, SPELLS } from '@zyra/shared'; // 
 import type { PlayerState, MonsterState, ProjectileState, DroppedItemState } from '@zyra/shared';
 
 export class CombatScene extends Container {
@@ -28,6 +31,11 @@ export class CombatScene extends Container {
   private particles: ParticleSystem;
   private damageNumbers: DamageNumberSystem;
 
+    // ✅ NOVOS SISTEMAS ETAPA 3
+  private gestureRecognizer: GestureRecognizer;
+  private gestureTrailUI: GestureTrailUI;
+  private selectedTargetId: string | null = null; // ID do monstro selecionado
+
   private players = new Map<string, Player>();
   private monsters = new Map<string, MonsterEntity>();
   private projectiles = new Map<string, ProjectileEntity>();
@@ -43,6 +51,10 @@ export class CombatScene extends Container {
     this.game = game; // Salva a referência do Game
     this.network = network;
     this.inputSystem = new InputSystem();
+
+    // ✅ INICIALIZAR SISTEMAS DE GESTO
+    this.gestureRecognizer = new GestureRecognizer();
+    this.gestureTrailUI = new GestureTrailUI();
 
     this.background = new Graphics();
     this.background.zIndex = -10; 
@@ -71,6 +83,10 @@ export class CombatScene extends Container {
     this.tooltip = new ItemTooltip();
     this.tooltip.zIndex = 3000;
     this.addChild(this.tooltip);
+
+    // ✅ ADICIONAR UI DE GESTO (ACIMA DE TUDO)
+    this.gestureTrailUI.zIndex = 5000;
+    this.addChild(this.gestureTrailUI);
 
     this.zoneNameText = new Text({
       text: '',
@@ -104,6 +120,7 @@ export class CombatScene extends Container {
     this.setupRoom();
     this.setupInput();
     this.setupUIEvents();
+    this.setupGestureInput();
   }
 
   private setupUIEvents() {
@@ -120,6 +137,137 @@ export class CombatScene extends Container {
         this.tooltip.hide();
         originalClose();
     };
+  }
+
+/**
+   * Configura eventos de mouse para captura de gestos
+   */
+  private setupGestureInput() {
+    this.eventMode = 'static';
+    this.hitArea = { contains: () => true } as any;
+
+    // ❌ REMOVER CÓDIGO ANTIGO DE ATAQUE (linha ~251)
+    // this.on('pointerdown', (event) => {
+    //   const worldPos = this.world.toLocal(event.global);
+    //   this.network.sendAttack(worldPos.x, worldPos.y);
+    // });
+
+    // ✅ NOVO: Captura de gestos
+    this.on('pointerdown', (event) => {
+      // Não processar se inventário aberto
+      if (this.inventoryUI.visible) return;
+
+      const worldPos = this.world.toLocal(event.global);
+      
+      // Iniciar captura de gesto
+      this.gestureRecognizer.startGesture(worldPos.x, worldPos.y);
+    });
+
+    this.on('pointermove', (event) => {
+      if (this.inventoryUI.visible) return;
+
+      const worldPos = this.world.toLocal(event.global);
+      
+      // Adicionar ponto ao caminho
+      this.gestureRecognizer.addPoint(worldPos.x, worldPos.y);
+      
+      // Atualizar visual do rastro
+      const path = this.gestureRecognizer.getCurrentPath();
+      this.gestureTrailUI.updateTrail(path);
+    });
+
+    this.on('pointerup', (event) => {
+      if (this.inventoryUI.visible) return;
+
+      // Reconhecer gesto
+      const result = this.gestureRecognizer.recognizeGesture();
+      
+      console.log('[MEGA] Gesto reconhecido:', result.type, `(${Math.round(result.confidence * 100)}%)`);
+
+      // Mostrar feedback visual
+      const worldPos = this.world.toLocal(event.global);
+      this.gestureTrailUI.showResult(result.type, result.confidence, worldPos);
+
+      // Processar magia se gesto válido
+      if (result.type !== GestureType.NONE) {
+        this.castSpellFromGesture(result.type);
+      }
+
+      // Limpar rastro após delay
+      setTimeout(() => {
+        this.gestureTrailUI.clear();
+        this.gestureRecognizer.reset();
+      }, 500);
+    });
+  }
+
+  /**
+   * Lança magia baseado no gesto reconhecido
+   */
+  private castSpellFromGesture(gestureType: GestureType) {
+    // Mapear gesto → magia
+    const spellType = getSpellFromGesture(gestureType);
+    
+    if (!spellType) {
+      console.warn('[MEGA] Gesto sem magia mapeada:', gestureType);
+      return;
+    }
+
+    const spellConfig = SPELLS[spellType];
+
+    // ⚠️ ETAPA 4: Verificar se precisa de target (será implementado depois)
+    if (spellConfig.requiresTarget && !this.selectedTargetId) {
+      console.warn('[MEGA] Magia requer alvo selecionado!');
+      this.showTemporaryMessage('⚠️ Selecione um alvo primeiro!');
+      return;
+    }
+
+    // Verificar mana
+    const myPlayer = this.mySessionId ? this.network.getCurrentRoom()?.state.players.get(this.mySessionId) : null;
+    if (!myPlayer) return;
+
+    if (myPlayer.currentMana < spellConfig.manaCost) {
+      console.warn('[MEGA] Mana insuficiente!');
+      this.showTemporaryMessage('❌ Mana insuficiente!');
+      return;
+    }
+
+    // ✅ ENVIAR PARA SERVIDOR
+    console.log(`[MEGA] Lançando ${spellConfig.name} (${spellType})`);
+    
+    this.network.getCurrentRoom()?.send('cast_spell', {
+      spellType: spellType,
+      targetId: this.selectedTargetId
+    });
+
+    // Feedback visual local (partículas)
+    if (myPlayer) {
+      this.particles.spawn(myPlayer.x, myPlayer.y, spellConfig.color, spellConfig.particleCount);
+    }
+  }
+
+  /**
+   * Helper para mostrar mensagens temporárias
+   */
+  private showTemporaryMessage(text: string) {
+    const msg = new Text({
+      text,
+      style: {
+        fontSize: 20,
+        fill: 0xffff00,
+        fontWeight: 'bold',
+        stroke: { color: 0x000000, width: 4 }
+      }
+    });
+    msg.anchor.set(0.5);
+    msg.position.set(window.innerWidth / 2, window.innerHeight / 2);
+    msg.zIndex = 6000;
+    this.addChild(msg);
+
+    setTimeout(() => {
+      this.removeChild(msg);
+      msg.destroy();
+    }, 1500);
   }
 
   private async setupRoom() {
@@ -271,13 +419,7 @@ export class CombatScene extends Container {
   private setupInput() {
     this.eventMode = 'static';
     this.hitArea = { contains: () => true } as any;
-
-    this.on('pointerdown', (event) => {
-      if (this.inventoryUI.visible) return; 
-
-      const worldPos = this.world.toLocal(event.global);
-      this.network.sendAttack(worldPos.x, worldPos.y);
-    });
+    
 
     window.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase();

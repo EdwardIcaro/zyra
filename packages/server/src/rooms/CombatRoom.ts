@@ -2,8 +2,10 @@ import { Room, Client } from 'colyseus';
 import { 
   ZoneRoomState, PlayerState, MonsterState, ProjectileState, DroppedItemState,
   InventorySlot, EquippedItem, GAME_CONFIG, CLASSES, ZONES, 
-   ItemRegistry, SPAWN_POINTS, MonsterRegistry, getRequiredXP 
+  ItemRegistry, SPAWN_POINTS, MonsterRegistry, getRequiredXP,
+  ClassType, SpellType, SPELLS,
 } from '@zyra/shared';
+
 import { v4 as uuid } from 'uuid';
 import { db } from '../database/db';
 import { BuffManager } from '../systems/BuffManager';
@@ -22,7 +24,7 @@ export class CombatRoom extends Room<ZoneRoomState> {
   private inventoryManager = new InventoryManager();
   private equipmentManager = new EquipmentManager();
 
- async onCreate(options: any) {
+  async onCreate(options: any) {
     this.setState(new ZoneRoomState());
     
     const zoneId = options.zoneId || 'bleeding_plains';
@@ -35,154 +37,294 @@ export class CombatRoom extends Room<ZoneRoomState> {
 
     // --- MENSAGENS DE INVENTÁRIO & EQUIPAMENTO ---
     this.onMessage('inventory:move', (client, data: { from: number; to: number }) => {
-        const player = this.state.players.get(client.sessionId);
-        if (player) this.inventoryManager.moveItem(player, data.from, data.to);
+      const player = this.state.players.get(client.sessionId);
+      if (player) this.inventoryManager.moveItem(player, data.from, data.to);
     });
 
-    // ✅ MENSAGEM DE EQUIPAR (CORRIGIDA)
     this.onMessage('equipment:equip', async (client, data: { inventorySlot: number }) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player) return;
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
 
-        try {
-            // Buscar charId
-            const charRes = await db.query(
-                'SELECT id FROM characters WHERE char_name = $1', 
-                [player.username]
-            );
-            const charId = charRes.rows[0]?.id;
+    try {
+        // Buscar item no banco
+        const charRes = await db.query(
+          'SELECT id FROM characters WHERE char_name = $1', 
+          [player.username]
+        );
 
-            if (!charId) {
-                console.error('[Equip] Character not found in DB');
-                return;
-            }
-
-            // Buscar item no banco
-            const itemRes = await db.query(
-                'SELECT * FROM items WHERE player_id = $1 AND slot_position = $2',
-                [charId, data.inventorySlot]
-            );
-
-            if (itemRes.rows.length === 0) {
-                console.warn('[Equip] No item found in slot', data.inventorySlot);
-                return;
-            }
-
-            const item = itemRes.rows[0];
-            
-            // ✅ Buscar template para pegar o slot
-            const template = ItemRegistry.getTemplate(item.item_id);
-            
-            if (!template || !template.equipSlot) {
-                console.warn('[Equip] Item has no equipSlot');
-                return;
-            }
-
-            // Equipar
-            const success = this.equipmentManager.equipFromInventory(player, data.inventorySlot);
-
-            if (success) {
-                const targetSlot = template.equipSlot;
-
-                // Salvar no banco
-                await db.query(`
-                    INSERT INTO character_equipment (player_id, slot, item_id)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (player_id, slot) 
-                    DO UPDATE SET item_id = EXCLUDED.item_id
-                `, [charId, targetSlot, item.item_id]);
-
-                // Remover do inventário
-                await db.query('DELETE FROM items WHERE id = $1', [item.id]);
-
-                console.log(`✅ [Equip] ${player.username} equipped ${item.item_id} in ${targetSlot}`);
-            }
-        } catch (err: any) {
-            console.error('[Equip] Error:', err.message);
+        // Se não encontrou o personagem, logar e sair antes de consultar itens
+        if (!charRes.rows || charRes.rows.length === 0) {
+          console.warn(`[Equip] Character not found for ${player.username}`);
+          return;
         }
+
+        const charId = charRes.rows[0].id;
+
+        const itemRes = await db.query(
+          'SELECT * FROM items WHERE player_id = $1 AND slot_position = $2',
+          [charId, data.inventorySlot]
+        );
+
+        if (itemRes.rows.length === 0) {
+            console.warn('[Equip] No item found in slot', data.inventorySlot);
+            return;
+        }
+
+        const item = itemRes.rows[0];
+        
+        // ✅ NOVA LÓGICA: Se item tem visualConfigId, adicionar ao player
+        if (item.visual_config_id) {
+            // Verificar se já não está equipado
+            if (!player.equippedVisualIds.includes(item.visual_config_id)) {
+                player.equippedVisualIds.push(item.visual_config_id);
+                
+                // Atualizar item como equipado no banco
+                await db.query(
+                    'UPDATE items SET is_equipped = true WHERE id = $1',
+                    [item.id]
+                );
+                
+                console.log(`✅ [Equip] ${player.username} equipped visual ${item.visual_config_id}`);
+            }
+        }
+
+        // Chamar lógica antiga de equipamento (stats, etc)
+        this.equipmentManager.equipFromInventory(player, data.inventorySlot);
+    } catch (err: any) {
+        console.error('[Equip] Error:', err.message);
+    }
+});
+
+   /**
+     * ✅ NOVO: Cast de magia por gesto
+     */
+    this.onMessage('cast_spell', (client, data: { spellType: SpellType; targetId?: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !player.isAlive) return;
+
+      const { spellType, targetId } = data;
+      const spellConfig = SPELLS[spellType];
+
+      if (!spellConfig) {
+        console.warn('[MEGA] Magia inválida:', spellType);
+        return;
+      }
+
+      // 1. VERIFICAR MANA
+      if (player.currentMana < spellConfig.manaCost) {
+        console.warn(`[MEGA] ${player.username} sem mana para ${spellConfig.name}`);
+        return;
+      }
+
+      // 2. VERIFICAR TARGET (se necessário)
+      let target: MonsterState | null = null;
+      
+      if (spellConfig.requiresTarget) {
+        if (!targetId) {
+          console.warn('[MEGA] Magia requer alvo mas nenhum foi fornecido');
+          return;
+        }
+        
+        target = this.state.monsters.get(targetId);
+        
+        if (!target || target.isDead) {
+          console.warn('[MEGA] Alvo inválido ou morto');
+          return;
+        }
+
+        // Verificar range
+        const distance = Math.hypot(player.x - target.x, player.y - target.y);
+        if (spellConfig.maxRange && distance > spellConfig.maxRange) {
+          console.warn('[MEGA] Alvo fora de alcance');
+          return;
+        }
+      }
+
+      // 3. CONSUMIR MANA
+      player.currentMana -= spellConfig.manaCost;
+      
+      console.log(`🔮 [MEGA] ${player.username} lançou ${spellConfig.name}`);
+
+      // 4. APLICAR EFEITO DA MAGIA
+      this.applySpellEffect(player, spellConfig, target);
     });
 
-    // ✅ MENSAGEM DE DESEQUIPAR
-    this.onMessage('equipment:unequip', async (client, data: { equipmentSlot: string }) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player) return;
+this.onMessage('equipment:unequip', async (client, data: { equipmentSlot: string }) => {
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
 
-        try {
-            const charRes = await db.query(
-                'SELECT id FROM characters WHERE char_name = $1', 
-                [player.username]
-            );
-            const charId = charRes.rows[0]?.id;
+  try {
+    const charRes = await db.query(
+      'SELECT id FROM characters WHERE char_name = $1', 
+      [player.username]
+    );
 
-            if (!charId) return;
+    if (!charRes.rows || charRes.rows.length === 0) {
+      console.warn(`[Unequip] Character not found for ${player.username}`);
+      return;
+    }
 
-            // Buscar item equipado
-            const equippedItem = player.equipment.equipped.get(data.equipmentSlot);
-            if (!equippedItem) {
-                console.warn('[Unequip] No item in slot', data.equipmentSlot);
-                return;
-            }
+    const charId = charRes.rows[0].id;
 
-            const itemId = equippedItem.itemId;
+    // Buscar item equipado no slot
+    const itemRes = await db.query(
+      'SELECT * FROM items WHERE player_id = $1 AND is_equipped = true',
+      [charId]
+    );
 
-            // Desequipar
-            const success = this.equipmentManager.unequipToInventory(player, data.equipmentSlot);
+        for (const item of itemRes.rows) {
+            if (item.visual_config_id && player.equippedVisualIds.includes(item.visual_config_id)) {
+                // ✅ REMOVER DO ARRAY
+                const index = player.equippedVisualIds.indexOf(item.visual_config_id);
+                if (index !== -1) {
+                    player.equippedVisualIds.splice(index, 1);
+                }
 
-            if (success) {
-                // Remover do banco de equipamentos
+                // Atualizar banco
                 await db.query(
-                    'DELETE FROM character_equipment WHERE player_id = $1 AND slot = $2',
-                    [charId, data.equipmentSlot]
+                    'UPDATE items SET is_equipped = false WHERE id = $1',
+                    [item.id]
                 );
 
-                // Adicionar de volta ao inventário
-                await db.query(`
-                    INSERT INTO items (player_id, item_id, quantity, slot_position, is_equipped)
-                    VALUES ($1, $2, 1, (
-                        SELECT COALESCE(MAX(slot_position), -1) + 1 
-                        FROM items WHERE player_id = $1
-                    ), false)
-                `, [charId, itemId]);
-
-                console.log(`✅ [Unequip] ${player.username} unequipped from ${data.equipmentSlot}`);
+                console.log(`✅ [Unequip] ${player.username} unequipped visual ${item.visual_config_id}`);
             }
-        } catch (err: any) {
-            console.error('[Unequip] Error:', err.message);
         }
-    });
 
-    // --- MENSAGEM DE COLETA MANUAL ---
+        // Chamar lógica antiga
+        this.equipmentManager.unequipToInventory(player, data.equipmentSlot);
+    } catch (err: any) {
+        console.error('[Unequip] Error:', err.message);
+    }
+});
+
+    // --- MENSAGEM DE COLETA MANUAL (Caso o pickup automático falhe ou seja clicado) ---
     this.onMessage('item:pickup', async (client, data: { dropId: string }) => {
        await this.processPickup(client.sessionId, data.dropId);
     });
 
     // --- MOVIMENTO E COMBATE ---
     this.onMessage('move', (client, message: { dx: number, dy: number }) => {
-        this.playerMovements.set(client.sessionId, { dx: message.dx, dy: message.dy });
+      this.playerMovements.set(client.sessionId, { dx: message.dx, dy: message.dy });
     });
 
     this.onMessage('stop', (client) => {
-        this.playerMovements.delete(client.sessionId);
+      this.playerMovements.delete(client.sessionId);
     });
 
     this.onMessage('attack', (client, message: { targetX: number, targetY: number }) => {
-        this.handleAttack(client, message);
+      this.handleAttack(client, message);
     });
 
     this.setSimulationInterval(() => this.update(), 1000 / GAME_CONFIG.TICK_RATE);
     this.initializeSpawns();
-} // ✅ FECHAR onCreate corretamente
+  }
 
+  
+ /**
+   * Aplica efeito da magia (dano, buffs, projéteis)
+   */
+  private applySpellEffect(
+    caster: PlayerState, 
+    spell: typeof SPELLS[SpellType], 
+    target: MonsterState | null
+  ) {
+    switch (spell.id) {
+      
+      case SpellType.FIREBALL:
+        // Projétil explosivo
+        if (target) {
+          this.createSpellProjectile(caster, target, spell);
+        }
+        break;
+
+      case SpellType.LIGHTNING:
+        // Dano instantâneo
+        if (target) {
+          const damage = spell.baseDamage + (caster.intelligence * 0.5);
+          target.currentHp -= damage;
+          
+          if (target.currentHp <= 0) {
+            this.onMonsterKilled(target, caster, target.id);
+          }
+        }
+        break;
+
+      case SpellType.SHIELD:
+        // Buff de defesa (implementar na ETAPA 6)
+        console.log('[MEGA] Shield cast (buff não implementado ainda)');
+        break;
+
+      case SpellType.ICE_LANCE:
+        // Projétil perfurante
+        if (target) {
+          this.createSpellProjectile(caster, target, spell);
+        }
+        break;
+
+      case SpellType.BASIC_ATTACK:
+        // Ataque melee básico
+        if (target) {
+          const distance = Math.hypot(caster.x - target.x, caster.y - target.y);
+          
+          if (distance < spell.maxRange!) {
+            const damage = spell.baseDamage + (caster.strength * 0.3);
+            target.currentHp -= damage;
+            
+            if (target.currentHp <= 0) {
+              this.onMonsterKilled(target, caster, target.id);
+            }
+          }
+        }
+        break;
+    }
+  }
+
+  /**
+   * Cria projétil de magia
+   */
+  private createSpellProjectile(
+    caster: PlayerState,
+    target: MonsterState,
+    spell: typeof SPELLS[SpellType]
+  ) {
+    if (!spell.projectileSpeed) return;
+
+    const projectile = new ProjectileState();
+    projectile.id = uuid();
+    projectile.ownerId = caster.playerId;
+    projectile.x = caster.x;
+    projectile.y = caster.y;
+
+    // Direção para o alvo
+    const dx = target.x - caster.x;
+    const dy = target.y - caster.y;
+    const dist = Math.hypot(dx, dy) || 1;
+
+    projectile.vx = (dx / dist) * spell.projectileSpeed;
+    projectile.vy = (dy / dist) * spell.projectileSpeed;
+    
+    // Dano da magia
+    projectile.damage = spell.baseDamage + (caster.intelligence * 0.5);
+    projectile.color = `#${spell.color.toString(16).padStart(6, '0')}`;
+    projectile.life = 100;
+    projectile.radius = spell.aoeRadius || 10;
+
+    this.state.projectiles.set(projectile.id, projectile);
+  }
   
 
 async onJoin(client: Client, options: any) {
-    const { charName, classType, isNew, dbId, bodyColor, eyeColor } = options;
+    // ✅ MUDANÇA: Forçar classType = 'mage' independente do input
+    const { charName, isNew, dbId, bodyColor, eyeColor } = options;
+    
+    // ⚠️ FORÇA TODOS COMO MAGE (TEMPORÁRIO)
+    const FORCED_CLASS = ClassType.MAGE;
     
     try {
       let characterData;
       
       if (isNew) {
-        // Criar novo personagem COM cores customizadas
+        // ✅ CRIAR CHAR JÁ COMO MAGE
         const newCharRes = await db.query(
           `INSERT INTO characters (
             account_id, char_name, class_type, level, gold, session_id,
@@ -193,10 +335,10 @@ async onJoin(client: Client, options: any) {
           [
             dbId, 
             charName, 
-            classType || 'warrior', 
+            FORCED_CLASS,  // ⬅️ MUDOU: era 'classType || warrior'
             client.sessionId,
-            bodyColor || '#FF6B6B',  // Default vermelho
-            eyeColor || '#FFFFFF'    // Default branco
+            bodyColor || '#FF6B6B',
+            eyeColor || '#FFFFFF'
           ]
         );
         characterData = newCharRes.rows[0];
@@ -208,41 +350,67 @@ async onJoin(client: Client, options: any) {
           [characterData.id, 'sword_ink_blade']
         );
         
-        console.log(`✅ [CombatRoom] Novo personagem criado: ${charName} (${bodyColor}, ${eyeColor})`);
+        console.log(`✅ [MEGA] Novo personagem MAGE criado: ${charName}`);
       } else {
         // Carregar personagem existente
         const charRes = await db.query('SELECT * FROM characters WHERE id = $1', [dbId]);
         characterData = charRes.rows[0];
+
+        // ⚠️ OVERRIDE: Se não for mage, converter temporariamente
+        if (characterData.class_type !== 'mage') {
+          console.warn(`⚠️ [MEGA] Convertendo ${charName} de ${characterData.class_type} → mage (temporário)`);
+          characterData.class_type = 'mage'; // Não salva no DB, só na sessão
+        }
+
         await db.query(
           'UPDATE characters SET session_id = $1 WHERE id = $2', 
           [client.sessionId, dbId]
         );
       }
 
-      const classConfig = CLASSES[characterData.class_type as keyof typeof CLASSES];
+      // ✅ APLICAR STATS DE MAGE (resto do código igual)
+      const classConfig = CLASSES['mage']; // ⬅️ MUDOU: era CLASSES[characterData.class_type]
       const player = new PlayerState();
       
       player.playerId = client.sessionId;
       player.username = characterData.char_name;
-      player.classType = characterData.class_type;
+      player.classType = ClassType.MAGE; // ⬅️ MUDOU: Usar enum ao invés de string
+
+      // Aplicar stats base da classe
       player.level = characterData.level || 1;
       player.experience = Number(characterData.experience) || 0;
       player.gold = characterData.gold || 0;
-      player.maxHp = characterData.max_hp || classConfig.baseStats.maxHp;
+      
+      // Stats base
+      player.baseMaxHp = characterData.max_hp || classConfig.baseStats.maxHp;
+      player.baseMaxMana = classConfig.baseStats.maxMana;
+      player.baseStrength = classConfig.baseStats.strength;
+      player.baseDexterity = classConfig.baseStats.dexterity;
+      player.baseIntelligence = classConfig.baseStats.intelligence;
+      player.baseVitality = classConfig.baseStats.vitality;
+      player.baseDamage = characterData.damage || classConfig.combat.baseDamage;
+      player.baseDefense = characterData.defense || 0;
+      
+      // Stats finais (base + equipamentos)
+      player.maxHp = player.baseMaxHp;
+      player.maxMana = player.baseMaxMana;
       player.currentHp = player.maxHp;
-      player.damage = characterData.damage || classConfig.combat.baseDamage;
+      player.currentMana = player.maxMana;
+      player.strength = player.baseStrength;
+      player.dexterity = player.baseDexterity;
+      player.intelligence = player.baseIntelligence;
+      player.vitality = player.baseVitality;
+      player.damage = player.baseDamage;
+      player.defense = player.baseDefense;
+      
       player.isAlive = true;
       player.x = this.state.width / 2;
       player.y = this.state.height / 2;
       
-      // ==================== CORES CUSTOMIZADAS ====================
+      // Visual
       player.bodyColor = characterData.body_color || '#FF6B6B';
-      player.eyeColor = characterData.eye_color || '#FFFFFF'; // ✅ MANTIDO
-      
-      // ==================== VISUAL SYSTEM ====================
+      player.eyeColor = characterData.eye_color || '#FFFFFF';
       player.eyeTypeId = characterData.eye_type_id || 1;
-      
-      // Visuais LEGADOS (mantidos para compatibilidade)
       player.visualBody = characterData.visual_body || 'ball_red';
       player.visualFace = characterData.visual_face || 'eyes_determined';
       player.visualHat = characterData.visual_hat || 'none';
@@ -250,7 +418,7 @@ async onJoin(client: Client, options: any) {
       await this.syncInventoryFromDB(characterData.id, player);
       this.state.players.set(client.sessionId, player);
       
-      console.log(`👤 [CombatRoom] ${player.username} entrou (eyeType=${player.eyeTypeId}, ${player.bodyColor})`);
+      console.log(`👤 [MEGA] ${player.username} entrou como MAGE (forçado)`);
     } catch (err: any) {
       console.error("❌ [CombatRoom] Erro onJoin:", err.message);
       client.leave();
@@ -476,11 +644,11 @@ async onJoin(client: Client, options: any) {
           // ✅ NOVO: Verificar se o item existe no registry
           const template = ItemRegistry.getTemplate(row.item_id);
           if (!template) {
-            console.warn(`⚠️ [CombatRoom] Item ${row.item_id} não encontrado no registry!`);
-            } else if (template.isEquipable) {
-            console.log(`   ✓ Item equipável: ${row.item_id} → slot: ${template.equipSlot}`);
-}
-}
+                    console.warn(`⚠️ [CombatRoom] Item ${row.item_id} não encontrado no registry!`);
+                } else if (template.isEquipable) {
+                    console.log(`   ✓ Item equipável: ${row.item_id} → slot: ${template.equipSlot}`);
+                }
+            }
         });
     } catch (e: any) {
       console.error("❌ Erro SyncDB:", e.message);
