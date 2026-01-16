@@ -1,195 +1,134 @@
-// packages/client/src/systems/TargetingSystem.ts
-// 🔧 MEGA UPDATE - ETAPA 4: Sistema de Seleção de Alvos
-
+import { Graphics } from 'pixi.js';
 import type { MonsterEntity } from '../entities/Monster';
 
-export interface TargetableEntity {
-  id: string;
-  x: number;
-  y: number;
-  currentHp: number;
-  maxHp: number;
-  isDead?: boolean;
-}
+type TargetPickResult = { monster: MonsterEntity; changed: boolean };
+type TargetChangeHandler = (targetId: string | null, target: MonsterEntity | null) => void;
 
 export class TargetingSystem {
   private selectedTargetId: string | null = null;
-  private availableTargets: Map<string, TargetableEntity> = new Map();
-  private playerPosition: { x: number; y: number } = { x: 0, y: 0 };
-  
-  private readonly AUTO_TARGET_RADIUS = 800; // Distância máxima para auto-targeting
-  private readonly SELECTION_CLICK_RADIUS = 50; // Raio de click para selecionar
+  private selectedTarget: MonsterEntity | null = null;
+  private indicator: Graphics;
+  private pulseTime = 0;
+  private attackFlashUntil = 0;
+  private indicatorColor = 0;
+  onTargetChanged?: TargetChangeHandler;
 
-  /**
-   * Atualiza posição do jogador (para cálculos de distância)
-   */
-  updatePlayerPosition(x: number, y: number): void {
-    this.playerPosition = { x, y };
+  constructor() {
+    this.indicator = new Graphics();
+    this.indicator.visible = false;
   }
 
-  /**
-   * Atualiza lista de alvos disponíveis
-   */
-  updateTargets(monsters: Map<string, MonsterEntity>): void {
-    this.availableTargets.clear();
-    
-    monsters.forEach((monster, id) => {
-      const state = monster.getState();
-      if (!state.isDead && state.currentHp > 0) {
-        this.availableTargets.set(id, {
-          id,
-          x: state.x,
-          y: state.y,
-          currentHp: state.currentHp,
-          maxHp: state.maxHp,
-          isDead: state.isDead
-        });
-      }
-    });
-
-    // Limpar seleção se alvo morreu
-    if (this.selectedTargetId && !this.availableTargets.has(this.selectedTargetId)) {
-      this.selectedTargetId = null;
-    }
-  }
-
-  /**
-   * Tenta selecionar alvo por click (worldX, worldY)
-   */
-  selectTargetByClick(worldX: number, worldY: number): string | null {
-    let closestTarget: TargetableEntity | null = null;
-    let closestDistance = this.SELECTION_CLICK_RADIUS;
-
-    for (const target of this.availableTargets.values()) {
-      const distance = Math.hypot(target.x - worldX, target.y - worldY);
-      
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestTarget = target;
-      }
-    }
-
-    if (closestTarget) {
-      this.selectedTargetId = closestTarget.id;
-      console.log(`[Targeting] Selecionado: ${closestTarget.id}`);
-      return closestTarget.id;
-    }
-
-    return null;
-  }
-
-  /**
-   * Auto-targeting: Seleciona inimigo mais próximo do cursor
-   */
-  autoSelectNearestToCursor(cursorWorldX: number, cursorWorldY: number): string | null {
-    let closestTarget: TargetableEntity | null = null;
-    let closestDistance = this.AUTO_TARGET_RADIUS;
-
-    for (const target of this.availableTargets.values()) {
-      const distance = Math.hypot(target.x - cursorWorldX, target.y - cursorWorldY);
-      
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestTarget = target;
-      }
-    }
-
-    if (closestTarget) {
-      this.selectedTargetId = closestTarget.id;
-      return closestTarget.id;
-    }
-
-    return null;
-  }
-
-  /**
-   * Ciclar alvos com TAB (prioriza menor HP ou mais próximo)
-   */
-  cycleTarget(prioritizeLowestHp: boolean = false): string | null {
-    if (this.availableTargets.size === 0) return null;
-
-    const targets = Array.from(this.availableTargets.values());
-
-    // Ordenar alvos
-    if (prioritizeLowestHp) {
-      // Priorizar menor HP
-      targets.sort((a, b) => {
-        const hpPercentA = a.currentHp / a.maxHp;
-        const hpPercentB = b.currentHp / b.maxHp;
-        return hpPercentA - hpPercentB;
-      });
-    } else {
-      // Priorizar mais próximo do player
-      targets.sort((a, b) => {
-        const distA = Math.hypot(a.x - this.playerPosition.x, a.y - this.playerPosition.y);
-        const distB = Math.hypot(b.x - this.playerPosition.x, b.y - this.playerPosition.y);
-        return distA - distB;
-      });
-    }
-
-    // Se não há alvo selecionado, pegar o primeiro
-    if (!this.selectedTargetId) {
-      this.selectedTargetId = targets[0]?.id || null;
-      return this.selectedTargetId;
-    }
-
-    // Encontrar índice do alvo atual e pegar o próximo
-    const currentIndex = targets.findIndex(t => t.id === this.selectedTargetId);
-    
-    if (currentIndex === -1) {
-      // Alvo atual não existe mais, pegar o primeiro
-      this.selectedTargetId = targets[0]?.id || null;
-    } else {
-      // Pegar próximo (circular)
-      const nextIndex = (currentIndex + 1) % targets.length;
-      this.selectedTargetId = targets[nextIndex]?.id || null;
-    }
-
-    console.log(`[Targeting] Ciclo → ${this.selectedTargetId}`);
-    return this.selectedTargetId;
-  }
-
-  /**
-   * Limpar seleção
-   */
-  clearTarget(): void {
-    this.selectedTargetId = null;
-  }
-
-  /**
-   * Obter ID do alvo selecionado
-   */
   getSelectedTargetId(): string | null {
     return this.selectedTargetId;
   }
 
-  /**
-   * Obter dados do alvo selecionado
-   */
-  getSelectedTarget(): TargetableEntity | null {
-    if (!this.selectedTargetId) return null;
-    return this.availableTargets.get(this.selectedTargetId) || null;
+  hasTarget(): boolean {
+    return !!this.selectedTargetId && !!this.selectedTarget;
   }
 
-  /**
-   * Verificar se tem alvo válido
-   */
-  hasValidTarget(): boolean {
-    if (!this.selectedTargetId) return false;
-    const target = this.availableTargets.get(this.selectedTargetId);
-    return !!target && !target.isDead && target.currentHp > 0;
+  trySelectTarget(worldX: number, worldY: number, monsters: Map<string, MonsterEntity>): TargetPickResult | null {
+    let closest: { id: string; monster: MonsterEntity; dist: number } | null = null;
+
+    for (const [id, monster] of monsters.entries()) {
+      const dx = monster.x - worldX;
+      const dy = monster.y - worldY;
+      const dist = Math.hypot(dx, dy);
+      const radius = 26;
+
+      if (dist <= radius && (!closest || dist < closest.dist)) {
+        closest = { id, monster, dist };
+      }
+    }
+
+    if (!closest) return null;
+
+    const changed = this.selectedTargetId !== closest.id;
+    if (changed) {
+      this.setTarget(closest.id, closest.monster);
+    }
+
+    return { monster: closest.monster, changed };
   }
 
-  /**
-   * Obter distância até o alvo atual
-   */
-  getDistanceToTarget(): number {
-    const target = this.getSelectedTarget();
-    if (!target) return Infinity;
-    
-    return Math.hypot(
-      target.x - this.playerPosition.x,
-      target.y - this.playerPosition.y
-    );
+  clearTarget() {
+    if (!this.selectedTargetId) return;
+
+    this.selectedTargetId = null;
+    this.selectedTarget = null;
+    this.detachIndicator();
+    this.pulseTime = 0;
+    this.attackFlashUntil = 0;
+    this.onTargetChanged?.(null, null);
+  }
+
+  private setTarget(id: string, monster: MonsterEntity) {
+    this.selectedTargetId = id;
+    this.selectedTarget = monster;
+    this.refreshIndicator();
+    this.attachIndicator(monster);
+    this.onTargetChanged?.(id, monster);
+  }
+
+  private attachIndicator(monster: MonsterEntity) {
+    if (this.indicator.parent) this.indicator.parent.removeChild(this.indicator);
+    this.indicator.visible = true;
+    this.indicator.position.set(0, 0);
+    monster.addChild(this.indicator);
+  }
+
+  private detachIndicator() {
+    if (this.indicator.parent) this.indicator.parent.removeChild(this.indicator);
+    this.indicator.visible = false;
+  }
+
+  update(deltaTime: number) {
+    if (!this.indicator.visible) return;
+
+    this.pulseTime += deltaTime * 0.12;
+    const scale = 1 + Math.sin(this.pulseTime) * 0.08;
+    this.indicator.scale.set(scale);
+    this.indicator.alpha = 0.85 + Math.sin(this.pulseTime + 1.2) * 0.1;
+    this.refreshIndicator();
+  }
+
+  flashUnderAttack(durationMs: number = 300) {
+    this.attackFlashUntil = Date.now() + durationMs;
+    this.refreshIndicator();
+  }
+
+  private refreshIndicator() {
+    if (!this.selectedTarget) return;
+
+    const state = this.selectedTarget.getState();
+    const isUnderAttack = Date.now() < this.attackFlashUntil;
+    const color = isUnderAttack ? 0xff3333 : this.getColorForType(state.type);
+
+    if (color === this.indicatorColor) return;
+
+    this.indicatorColor = color;
+    this.indicator.clear();
+    this.indicator
+      .circle(0, 0, 30)
+      .stroke({ width: 4, color, alpha: 0.9 });
+    this.indicator
+      .circle(0, 0, 36)
+      .stroke({ width: 2, color, alpha: 0.4 });
+  }
+
+  private getColorForType(type: string): number {
+    switch (type) {
+      case 'beast':
+        return 0xffcc33;
+      case 'undead':
+        return 0x66ccff;
+      case 'demon':
+        return 0xff3366;
+      case 'elemental':
+        return 0x33ffcc;
+      case 'humanoid':
+        return 0x99ff66;
+      default:
+        return 0xffff00;
+    }
   }
 }
