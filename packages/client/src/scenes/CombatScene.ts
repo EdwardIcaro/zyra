@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
 import type { Game } from '../game/Game';
 import type { NetworkManager } from '../game/NetworkManager';
 import { Player } from '../entities/Player'; 
@@ -6,27 +6,40 @@ import { MonsterEntity } from '../entities/Monster';
 import { ProjectileEntity } from '../entities/Projectile';
 import { DroppedItemEntity } from '../entities/DroppedItem';
 import { InputSystem } from '../systems/InputSystem';
+import { TargetingSystem } from '../systems/TargetingSystem';
 import { GameHUD } from '../ui/GameHUD'; 
+import { TargetFrameUI } from '../ui/TargetFrameUI';
 import { InventoryUI } from '../ui/InventoryUI'; 
 import { ItemTooltip } from '../ui/ItemTooltip';
 import { ParticleSystem } from '../effects/ParticleSystem';
 import { DamageNumberSystem } from '../effects/DamageNumberSystem';
-import type { PlayerState, MonsterState, ProjectileState, DroppedItemState } from '@zyra/shared';
+import type { PlayerState, MonsterState, ProjectileState, DroppedItemState, ZoneTileState } from '@zyra/shared';
+import { CLASSES } from '@zyra/shared';
+import { SkillBarUI } from '../ui/SkillBarUI';
+import { HealthManaBar } from '../ui/HealthManaBar';
 
 export class CombatScene extends Container {
   private game: Game; // Adicionado para acessar o App e Ticker
   private network: NetworkManager;
   private inputSystem: InputSystem;
   private hud: GameHUD;
+  private healthManaBar: HealthManaBar;
   private inventoryUI: InventoryUI; 
   private tooltip: ItemTooltip;
   private world: Container;
   private background: Graphics;
+  private tilemapContainer: Container;
+  private tileLayers: { ground: Container; decoration: Container; collision: Container };
+  private tileSprites = new Map<string, Sprite>();
+  private collisionDebugVisible = false;
+  private readonly tileSize = 32;
   private fpsText: Text;
   private zoneNameText: Text;
   
   private particles: ParticleSystem;
   private damageNumbers: DamageNumberSystem;
+  private targetingSystem: TargetingSystem;
+  private targetFrameUI: TargetFrameUI;
 
   private players = new Map<string, Player>();
   private monsters = new Map<string, MonsterEntity>();
@@ -37,12 +50,26 @@ export class CombatScene extends Container {
   private lastMovement = { dx: 0, dy: 0 };
   private lastMovementUpdate = 0;
   private movementUpdateInterval = 50;
+  private clickMoveTarget: { x: number; y: number } | null = null;
+  private clickIndicator: Graphics;
+  private clickIndicatorExpiresAt = 0;
+  private skillBar: SkillBarUI;
+  private uiConfigs = new Map<string, any>();
+  private basicAttackIntent: 'none' | 'once' | 'auto' = 'none';
+  private basicAttackTargetId: string | null = null;
+  private lastBasicAttackAt = 0;
 
   constructor(game: Game, network: NetworkManager) {
     super();
     this.game = game; // Salva a referência do Game
     this.network = network;
     this.inputSystem = new InputSystem();
+    this.targetingSystem = new TargetingSystem();
+    this.targetFrameUI = new TargetFrameUI();
+    this.targetingSystem.onTargetChanged = (_targetId, target) => {
+      if (target) this.targetFrameUI.attachTo(target);
+      else this.targetFrameUI.clear();
+    };
 
     this.background = new Graphics();
     this.background.zIndex = -10; 
@@ -53,6 +80,23 @@ export class CombatScene extends Container {
     this.world.sortableChildren = true; 
     this.addChild(this.world);
 
+    this.tilemapContainer = new Container();
+    this.tilemapContainer.zIndex = -1;
+    this.tileLayers = {
+      ground: new Container(),
+      decoration: new Container(),
+      collision: new Container()
+    };
+    this.tilemapContainer.addChild(this.tileLayers.ground);
+    this.tilemapContainer.addChild(this.tileLayers.decoration);
+    this.tilemapContainer.addChild(this.tileLayers.collision);
+    this.world.addChild(this.tilemapContainer);
+
+    this.clickIndicator = new Graphics();
+    this.clickIndicator.visible = false;
+    this.clickIndicator.zIndex = 5;
+    this.world.addChild(this.clickIndicator);
+
     this.particles = new ParticleSystem();
     this.particles.zIndex = 500; 
     this.damageNumbers = new DamageNumberSystem();
@@ -62,7 +106,20 @@ export class CombatScene extends Container {
 
     this.hud = new GameHUD();
     this.hud.zIndex = 1000;
+    this.hud.position.set(window.innerWidth / 2 - GameHUD.XP_BAR_WIDTH / 2, window.innerHeight - 20 - GameHUD.HEIGHT);
     this.addChild(this.hud);
+
+    this.healthManaBar = new HealthManaBar();
+    this.healthManaBar.zIndex = 1100;
+    this.addChild(this.healthManaBar);
+    this.healthManaBar.ready.then(() => {
+      this.healthManaBar.layout(window.innerWidth, window.innerHeight);
+    });
+
+    this.skillBar = new SkillBarUI();
+    this.skillBar.zIndex = 1200;
+    this.skillBar.layout(window.innerWidth, window.innerHeight);
+    this.addChild(this.skillBar);
 
     this.inventoryUI = new InventoryUI(); 
     this.inventoryUI.zIndex = 2000;
@@ -139,6 +196,19 @@ export class CombatScene extends Container {
     });
 
     room.state.listen('width', () => this.updateZoneBackground());
+    this.setupTileListeners(room);
+
+    try {
+      const res = await fetch('http://localhost:2567/api/buffs');
+      const buffs = await res.json();
+      const map = new Map<string, any>();
+      buffs.forEach((b: any) => map.set(b.id, b));
+      this.hud.setBuffTemplates(map);
+    } catch (e) {
+      console.warn('[CombatScene] Failed to load buff templates');
+    }
+
+    await this.loadUiConfigs();
 
     room.state.monsters.onAdd((monster: MonsterState, id: string) => {
       const monsterEntity = new MonsterEntity(monster);
@@ -160,6 +230,13 @@ export class CombatScene extends Container {
     room.state.monsters.onRemove((_monster: MonsterState, id: string) => {
       const m = this.monsters.get(id);
       if (m) {
+        if (this.targetingSystem.getSelectedTargetId() === id) {
+          this.targetingSystem.clearTarget();
+          this.targetFrameUI.clear();
+          this.network.sendTarget(null);
+          this.basicAttackIntent = 'none';
+          this.basicAttackTargetId = null;
+        }
         this.particles.spawn(m.x, m.y, 0xffaa00, 15);
         this.world.removeChild(m);
         this.monsters.delete(id);
@@ -184,6 +261,35 @@ export class CombatScene extends Container {
       if (isLocal) {
         player.onChange(() => {
           this.hud.update(player);
+          this.healthManaBar.setIdentity(player.username, player.level);
+          this.healthManaBar.setHp(player.currentHp, player.maxHp);
+          this.healthManaBar.setMana(player.currentMana, player.maxMana);
+          this.skillBar.setPlaceholderContext({
+            player: {
+              name: player.username,
+              level: player.level,
+              currentHp: player.currentHp,
+              maxHp: player.maxHp,
+              currentMana: player.currentMana,
+              maxMana: player.maxMana
+            }
+          });
+        });
+
+        // Initial render: onChange won't fire until the first patch (e.g. movement).
+        this.hud.update(player);
+        this.healthManaBar.setIdentity(player.username, player.level);
+        this.healthManaBar.setHp(player.currentHp, player.maxHp);
+        this.healthManaBar.setMana(player.currentMana, player.maxMana);
+        this.skillBar.setPlaceholderContext({
+          player: {
+            name: player.username,
+            level: player.level,
+            currentHp: player.currentHp,
+            maxHp: player.maxHp,
+            currentMana: player.currentMana,
+            maxMana: player.maxMana
+          }
         });
       }
     });
@@ -276,16 +382,36 @@ export class CombatScene extends Container {
       if (this.inventoryUI.visible) return; 
 
       const worldPos = this.world.toLocal(event.global);
-      this.network.sendAttack(worldPos.x, worldPos.y);
+      const pick = this.targetingSystem.trySelectTarget(worldPos.x, worldPos.y, this.monsters);
+      if (pick?.changed) {
+        this.network.sendTarget(this.targetingSystem.getSelectedTargetId());
+        return;
+      }
+
+      if (pick && this.targetingSystem.hasTarget()) {
+        this.requestBasicAttack('click');
+        return;
+      }
+
+      this.clickMoveTarget = { x: worldPos.x, y: worldPos.y };
+      this.showMoveIndicator(worldPos.x, worldPos.y);
     });
 
     window.addEventListener('keydown', (e) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        this.toggleCollisionDebug();
+        return;
+      }
       const key = e.key.toLowerCase();
       if (key === 'i' || key === 'e') {
         this.inventoryUI.toggle();
       }
       if (e.key === 'Escape' && this.inventoryUI.visible) {
         this.inventoryUI.close();
+      }
+      if (key === 'q' && !this.inventoryUI.visible) {
+        this.requestBasicAttack('q');
       }
     });
   }
@@ -309,6 +435,64 @@ export class CombatScene extends Container {
     }
   }
 
+  private setupTileListeners(room: any) {
+    const tiles = room.state.tiles;
+    if (!tiles) return;
+
+    tiles.onAdd((tile: ZoneTileState, key: string) => {
+      this.addTileSprite(key, tile);
+    });
+
+    tiles.onRemove((_tile: ZoneTileState, key: string) => {
+      this.removeTileSprite(key);
+    });
+  }
+
+  private async addTileSprite(key: string, tile: ZoneTileState) {
+    if (this.tileSprites.has(key)) return;
+    const baseUrl = `${window.location.protocol}//${window.location.hostname}:2567`;
+    const url = `${baseUrl}/assets/tileset/${tile.tilePath}`;
+    try {
+      const texture = await Assets.load(url);
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(0.5);
+      const px = tile.x * this.tileSize + this.tileSize / 2;
+      const py = tile.y * this.tileSize + this.tileSize / 2;
+      sprite.position.set(px, py);
+      sprite.width = this.tileSize;
+      sprite.height = this.tileSize;
+
+      if (tile.layer === 'collision') {
+        sprite.alpha = this.collisionDebugVisible ? 0.3 : 0;
+        sprite.tint = this.collisionDebugVisible ? 0xff4444 : 0xffffff;
+      }
+
+      const layerKey = (tile.layer as keyof typeof this.tileLayers) || 'ground';
+      const layer = this.tileLayers[layerKey] || this.tileLayers.ground;
+      layer.addChild(sprite);
+      this.tileSprites.set(key, sprite);
+    } catch (err) {
+      console.warn('[CombatScene] Erro ao carregar tile:', url);
+    }
+  }
+
+  private removeTileSprite(key: string) {
+    const sprite = this.tileSprites.get(key);
+    if (!sprite) return;
+    if (sprite.parent) sprite.parent.removeChild(sprite);
+    sprite.destroy();
+    this.tileSprites.delete(key);
+  }
+
+  private toggleCollisionDebug() {
+    this.collisionDebugVisible = !this.collisionDebugVisible;
+    this.tileSprites.forEach(sprite => {
+      if (sprite.parent !== this.tileLayers.collision) return;
+      sprite.alpha = this.collisionDebugVisible ? 0.3 : 0;
+      sprite.tint = this.collisionDebugVisible ? 0xff4444 : 0xffffff;
+    });
+  }
+
   update(deltaTime: number) {
     const now = Date.now();
     const room = this.network.getCurrentRoom();
@@ -316,23 +500,58 @@ export class CombatScene extends Container {
 
     this.fpsText.text = `FPS: ${Math.round(60 / deltaTime)}`;
 
+    this.updateBasicAttack(now, room);
+    this.hud.tick(now);
+
     if (!this.inventoryUI.visible) {
+      const myStateForMove = this.mySessionId ? room.state.players.get(this.mySessionId) : null;
       const input = this.inputSystem.getMovementInput();
       const dx = parseFloat(input.dx.toFixed(2));
       const dy = parseFloat(input.dy.toFixed(2));
       const isMoving = dx !== 0 || dy !== 0;
-      const changed = dx !== this.lastMovement.dx || dy !== this.lastMovement.dy;
+      let moveDx = dx;
+      let moveDy = dy;
 
-      if (changed || (isMoving && now - this.lastMovementUpdate > this.movementUpdateInterval)) {
-        if (isMoving) this.network.sendMove(dx, dy);
+      if (isMoving) {
+        this.clickMoveTarget = null;
+        this.clickIndicator.visible = false;
+      } else if (this.clickMoveTarget && myStateForMove) {
+        const tx = this.clickMoveTarget.x;
+        const ty = this.clickMoveTarget.y;
+        const ddx = tx - myStateForMove.x;
+        const ddy = ty - myStateForMove.y;
+        const dist = Math.hypot(ddx, ddy);
+
+        if (dist < 10) {
+          this.clickMoveTarget = null;
+          this.clickIndicator.visible = false;
+          moveDx = 0;
+          moveDy = 0;
+        } else {
+          moveDx = ddx / dist;
+          moveDy = ddy / dist;
+        }
+      }
+
+      if (this.clickIndicator.visible && this.clickIndicatorExpiresAt > 0 && now > this.clickIndicatorExpiresAt) {
+        this.clickIndicator.visible = false;
+      }
+
+      const changed = moveDx !== this.lastMovement.dx || moveDy !== this.lastMovement.dy;
+      const isMovingFinal = moveDx !== 0 || moveDy !== 0;
+
+      if (changed || (isMovingFinal && now - this.lastMovementUpdate > this.movementUpdateInterval)) {
+        if (isMovingFinal) this.network.sendMove(moveDx, moveDy);
         else this.network.sendStop();
         
-        this.lastMovement = { dx, dy };
+        this.lastMovement = { dx: moveDx, dy: moveDy };
         this.lastMovementUpdate = now;
       }
     }
 
     this.monsters.forEach(monster => monster.update(deltaTime));
+    this.targetingSystem.update(deltaTime);
+    this.targetFrameUI.update();
     this.projectiles.forEach(pr => pr.update(deltaTime));
     this.droppedItems.forEach(item => item.update(deltaTime));
     this.particles.update();
@@ -340,6 +559,8 @@ export class CombatScene extends Container {
     this.players.forEach((player) => {
         player.update(deltaTime);
     });
+
+    this.healthManaBar.update(deltaTime * (1000 / 60));
 
     const myPlayer = this.mySessionId ? this.players.get(this.mySessionId) : null;
     if (myPlayer) {
@@ -358,5 +579,118 @@ export class CombatScene extends Container {
   onResize() {
     this.zoneNameText.position.set(window.innerWidth / 2, 10);
     this.inventoryUI.resize();
+    this.skillBar.layout(window.innerWidth, window.innerHeight);
+    this.healthManaBar.layout(window.innerWidth, window.innerHeight);
+    this.hud.position.set(window.innerWidth / 2 - GameHUD.XP_BAR_WIDTH / 2, window.innerHeight - 20 - GameHUD.HEIGHT);
+  }
+
+  private async loadUiConfigs() {
+    try {
+      const res = await fetch('http://localhost:2567/api/ui/configs');
+      if (!res.ok) return;
+      const configs = await res.json();
+      configs.forEach((row: any) => {
+        this.uiConfigs.set(row.ui_name, row.config_json);
+      });
+      await this.applyUiConfigs();
+    } catch (e) {
+      console.warn('[CombatScene] Failed to load UI configs');
+    }
+  }
+
+  private async applyUiConfigs() {
+    const healthCfg = this.uiConfigs.get('health_mana_bar') || null;
+    const skillCfg = this.uiConfigs.get('skill_bar') || null;
+    await this.healthManaBar.ready;
+    if (healthCfg) await this.healthManaBar.applyConfig(healthCfg);
+    if (skillCfg) this.skillBar.applyConfig(skillCfg);
+    this.healthManaBar.layout(window.innerWidth, window.innerHeight);
+    this.skillBar.layout(window.innerWidth, window.innerHeight);
+  }
+
+  private showToast(text: string) {
+    const msg = new Text({
+      text,
+      style: { fontSize: 16, fill: 0xff4444, fontWeight: 'bold' }
+    });
+    msg.anchor.set(0.5);
+    msg.position.set(window.innerWidth / 2, 70);
+    msg.zIndex = 5000;
+    this.addChild(msg);
+
+    setTimeout(() => {
+      this.removeChild(msg);
+      msg.destroy();
+    }, 2000);
+  }
+
+  private showMoveIndicator(x: number, y: number) {
+    this.clickIndicator.clear();
+    this.clickIndicator
+      .circle(0, 0, 10)
+      .stroke({ width: 2, color: 0x00ccff, alpha: 0.9 });
+    this.clickIndicator
+      .circle(0, 0, 4)
+      .fill(0x00ccff);
+
+    this.clickIndicator.position.set(x, y);
+    this.clickIndicator.visible = true;
+    this.clickIndicatorExpiresAt = Date.now() + 5000;
+  }
+
+  private requestBasicAttack(source: 'q' | 'click') {
+    const targetId = this.targetingSystem.getSelectedTargetId();
+    if (!targetId) {
+      this.showToast('Selecione um alvo primeiro!');
+      return;
+    }
+
+    const room = this.network.getCurrentRoom();
+    const myState = this.mySessionId ? room?.state.players.get(this.mySessionId) : null;
+    const classConfig = myState ? this.getClassConfig(myState.classType) : null;
+    const isRanged = !!classConfig?.combat.isRanged;
+
+    this.basicAttackTargetId = targetId;
+    this.basicAttackIntent = source === 'q' && !isRanged ? 'auto' : 'once';
+  }
+
+  private updateBasicAttack(now: number, room: any) {
+    const myState = this.mySessionId ? room.state.players.get(this.mySessionId) : null;
+    if (!myState) return;
+
+    const classConfig = this.getClassConfig(myState.classType);
+    const cooldownMs = classConfig.combat.isRanged ? 1500 : 500;
+    const progress = Math.max(0, Math.min(1, (now - this.lastBasicAttackAt) / cooldownMs));
+    this.skillBar.setCooldownProgress(progress);
+
+    if (this.basicAttackIntent === 'none' || !this.basicAttackTargetId) return;
+
+    const targetEntity = this.monsters.get(this.basicAttackTargetId);
+    if (!targetEntity) {
+      this.basicAttackIntent = 'none';
+      this.basicAttackTargetId = null;
+      return;
+    }
+
+    const target = targetEntity.getState();
+    const dist = Math.hypot(target.x - myState.x, target.y - myState.y);
+    if (dist > classConfig.combat.attackRange) {
+      this.clickMoveTarget = { x: target.x, y: target.y };
+      return;
+    }
+
+    if (now - this.lastBasicAttackAt < cooldownMs) return;
+
+    this.lastBasicAttackAt = now;
+    this.network.sendAttack(target.x, target.y);
+
+    if (this.basicAttackIntent === 'once') {
+      this.basicAttackIntent = 'none';
+      this.basicAttackTargetId = null;
+    }
+  }
+
+  private getClassConfig(classType: string) {
+    return (CLASSES as any)[classType] || (CLASSES as any).mage || (CLASSES as any).warrior;
   }
 }

@@ -4,10 +4,10 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "migrate": "prisma migrate dev",
-    "generate": "prisma generate",
-    "studio": "prisma studio",
-    "push": "prisma db push",
+    "migrate": "node ../../../node_modules/prisma/build/index.js migrate dev --schema schema.prisma",
+    "generate": "node ../../../node_modules/prisma/build/index.js generate --schema schema.prisma",
+    "studio": "node ../../../node_modules/prisma/build/index.js studio --schema schema.prisma",
+    "push": "node ../../../node_modules/prisma/build/index.js db push --schema schema.prisma",
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {

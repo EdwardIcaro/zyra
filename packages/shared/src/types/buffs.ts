@@ -7,6 +7,9 @@ export interface BuffEffect {
   goldBonus?: number;
   attackSpeedBonus?: number;
   critChanceBonus?: number;
+  effectType?: 'dot';
+  damagePerTick?: number;
+  tickInterval?: number;
 }
 
 export interface BuffConfig {

@@ -5,6 +5,7 @@ export class MonsterState extends Schema {
   @type('string') templateId!: string;
   @type('string') name!: string; // ✅ ESTE CAMPO JÁ EXISTE
   @type('number') level: number = 1;
+  @type('string') type: string = '';
   
   @type('number') x: number = 0;
   @type('number') y: number = 0;
@@ -14,6 +15,8 @@ export class MonsterState extends Schema {
   @type('number') currentHp: number = 100;
   @type('number') maxHp: number = 100;
   @type('number') damage: number = 10;
+  @type('number') defense: number = 0;
+  @type('number') attackSpeed: number = 1.5;
   @type('number') speed: number = 1;
   
   @type('string') aggroType!: string; // 'passive' | 'aggressive' | 'defensive'

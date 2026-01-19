@@ -6,9 +6,11 @@ import dotenv from 'dotenv';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import fs from 'fs';
 import path from 'path';
-import { ItemRegistry, MonsterRegistry } from '@zyra/shared';  
+import { ItemRegistry, MonsterRegistry, ZONES } from '@zyra/shared';  
 import { VISUAL_CONFIGS } from '@zyra/shared/src/data/visualConfigs';
 import { pool } from './database/db';
+import { BuffTemplateRegistry } from './systems/BuffTemplateRegistry';
+import { ClassBaseStatsRegistry } from './systems/ClassBaseStatsRegistry';
 
 
 import { CombatRoom } from './rooms/CombatRoom';
@@ -23,6 +25,8 @@ app.use(cors());
 app.use(express.json());
 app.use('/admin', express.static('public/admin.html'));
 app.use('/api/admin', adminUsersRouter);
+app.use('/assets/ui', express.static(path.join(__dirname, '../../client/public/assets/ui')));
+app.use('/assets/fonts', express.static(path.join(__dirname, '../../client/public/assets/fonts')));
 
 app.get('/dashboard', (req, res) => {
     const adminPath = path.join(__dirname, '../public/admin.html');
@@ -64,7 +68,17 @@ app.get('/api/admin/monsters/:id/drops', async (req: Request, res: Response): Pr
 // Listar arquivos de sprites
 app.get('/api/admin/assets/:folder', (req: Request, res: Response): void => {
     const { folder } = req.params;
-    const publicPath = path.join(__dirname, '../../client/public/assets/sprites', folder);
+    let publicPath: string;
+    let allowedExts = ['.png', '.jpg', '.jpeg'];
+
+    if (folder === 'ui' || folder === 'fonts') {
+        publicPath = path.join(__dirname, '../../client/public/assets', folder);
+        if (folder === 'fonts') {
+            allowedExts = ['.fnt'];
+        }
+    } else {
+        publicPath = path.join(__dirname, '../../client/public/assets/sprites', folder);
+    }
 
     if (!fs.existsSync(publicPath)) {
         res.status(404).json({ error: 'Pasta não encontrada' });
@@ -78,18 +92,143 @@ app.get('/api/admin/assets/:folder', (req: Request, res: Response): void => {
             return;
         }
         
-        const images = files.filter(f => f.endsWith('.png') || f.endsWith('.jpg'));
-        res.json(images);
+        const filtered = files.filter(f => allowedExts.includes(path.extname(f).toLowerCase()));
+        res.json(filtered);
     });
+});
+
+// UI Configs (Admin)
+app.get('/api/admin/ui/configs', async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await pool.query(
+            'SELECT ui_name, config_json, updated_at FROM ui_configs ORDER BY ui_name ASC'
+        );
+        res.json(result.rows);
+    } catch (e) {
+        console.error('[Admin] Error loading ui configs:', e);
+        res.status(500).json({ error: 'Erro ao carregar UI configs' });
+    }
+});
+
+app.get('/api/admin/ui/configs/:uiName', async (req: Request, res: Response): Promise<void> => {
+    const { uiName } = req.params;
+    try {
+        const result = await pool.query(
+            'SELECT ui_name, config_json, updated_at FROM ui_configs WHERE ui_name = $1',
+            [uiName]
+        );
+        if (result.rows.length === 0) {
+            res.json({ ui_name: uiName, config_json: null });
+            return;
+        }
+        res.json(result.rows[0]);
+    } catch (e) {
+        console.error('[Admin] Error loading ui config:', e);
+        res.status(500).json({ error: 'Erro ao carregar UI config' });
+    }
+});
+
+app.post('/api/admin/ui/configs/save', async (req: Request, res: Response): Promise<void> => {
+    const { uiName, config } = req.body;
+    if (!uiName || !config) {
+        res.status(400).json({ error: 'uiName e config sÇœo obrigatÇórios' });
+        return;
+    }
+    try {
+        await pool.query(
+            `INSERT INTO ui_configs (ui_name, config_json)
+             VALUES ($1, $2)
+             ON CONFLICT (ui_name) DO UPDATE SET
+                config_json = EXCLUDED.config_json,
+                updated_at = now()`,
+            [uiName, config]
+        );
+        res.json({ ok: true });
+    } catch (e) {
+        console.error('[Admin] Error saving ui config:', e);
+        res.status(500).json({ error: 'Erro ao salvar UI config' });
+    }
+});
+
+app.post('/api/admin/ui/configs/reset', async (req: Request, res: Response): Promise<void> => {
+    const { uiName } = req.body;
+    if (!uiName) {
+        res.status(400).json({ error: 'uiName Ç­ obrigatÇório' });
+        return;
+    }
+    try {
+        await pool.query('DELETE FROM ui_configs WHERE ui_name = $1', [uiName]);
+        res.json({ ok: true });
+    } catch (e) {
+        console.error('[Admin] Error resetting ui config:', e);
+        res.status(500).json({ error: 'Erro ao resetar UI config' });
+    }
+});
+
+// UI Configs (Public)
+app.get('/api/ui/configs', async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await pool.query(
+            'SELECT ui_name, config_json FROM ui_configs ORDER BY ui_name ASC'
+        );
+        res.json(result.rows);
+    } catch (e) {
+        console.error('[Public] Error loading ui configs:', e);
+        res.status(500).json({ error: 'Erro ao carregar UI configs' });
+    }
+});
+
+app.get('/api/ui/configs/:uiName', async (req: Request, res: Response): Promise<void> => {
+    const { uiName } = req.params;
+    try {
+        const result = await pool.query(
+            'SELECT ui_name, config_json FROM ui_configs WHERE ui_name = $1',
+            [uiName]
+        );
+        if (result.rows.length === 0) {
+            res.json({ ui_name: uiName, config_json: null });
+            return;
+        }
+        res.json(result.rows[0]);
+    } catch (e) {
+        console.error('[Public] Error loading ui config:', e);
+        res.status(500).json({ error: 'Erro ao carregar UI config' });
+    }
+});
+
+// Listar tileset local (recursivo)
+app.get('/api/admin/tileset', async (_req: Request, res: Response): Promise<void> => {
+    const tilesetPath = path.join(__dirname, '../public/assets/tileset');
+    if (!fs.existsSync(tilesetPath)) {
+        res.json([]);
+        return;
+    }
+
+    const results: string[] = [];
+    const walk = (dir: string, base: string) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        entries.forEach(entry => {
+            const full = path.join(dir, entry.name);
+            const rel = path.relative(base, full).replace(/\\/g, '/');
+            if (entry.isDirectory()) {
+                walk(full, base);
+            } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.png')) {
+                results.push(rel);
+            }
+        });
+    };
+
+    walk(tilesetPath, tilesetPath);
+    res.json(results);
 });
 
 // Salvar/Atualizar Monstro
 app.post('/api/admin/monsters/save', async (req: Request, res: Response): Promise<void> => {
-    const { id, name, level, type, stats, behavior, rewards, appearance } = req.body;
+    const { id, name, level, type, stats, behavior, rewards, appearance, attackSpeed, defense } = req.body;
     try {
         await pool.query(`
-            INSERT INTO monster_templates (id, name, level, type, stats, behavior, rewards, appearance)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO monster_templates (id, name, level, type, stats, behavior, rewards, appearance, attack_speed, defense)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 level = EXCLUDED.level,
@@ -97,19 +236,425 @@ app.post('/api/admin/monsters/save', async (req: Request, res: Response): Promis
                 stats = EXCLUDED.stats,
                 behavior = EXCLUDED.behavior,
                 rewards = EXCLUDED.rewards,
-                appearance = EXCLUDED.appearance
+                appearance = EXCLUDED.appearance,
+                attack_speed = EXCLUDED.attack_speed,
+                defense = EXCLUDED.defense
         `, [
             id, name, level, type, 
             JSON.stringify(stats), 
             JSON.stringify(behavior), 
             JSON.stringify(rewards),
-            JSON.stringify(appearance)
+            JSON.stringify(appearance),
+            attackSpeed,
+            defense
         ]);
         
         res.json({ success: true });
     } catch (err) {
         console.error('[Admin] Error saving monster:', err);
         res.status(500).json({ error: 'Failed to save monster' });
+    }
+});
+
+app.delete('/api/admin/monsters/:id', async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    try {
+        await pool.query('DELETE FROM monster_spawns WHERE monster_id = $1', [id]);
+        await pool.query('DELETE FROM monster_drops WHERE monster_id = $1', [id]);
+        await pool.query('DELETE FROM monster_templates WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error deleting monster:', err);
+        res.status(500).json({ error: 'Failed to delete monster' });
+    }
+});
+
+// Listar Buffs/Debuffs
+app.get('/api/admin/buffs', async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await pool.query('SELECT * FROM buff_templates ORDER BY id ASC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Admin] Error loading buffs:', err);
+        res.status(500).json({ error: 'Failed to load buffs' });
+    }
+});
+
+// Salvar/Atualizar Buff/Debuff
+app.post('/api/admin/buffs/save', async (req: Request, res: Response): Promise<void> => {
+    const { id, name, kind, description, durationMs, stackable, maxStacks, effects, visualColor } = req.body;
+    try {
+        await pool.query(`
+            INSERT INTO buff_templates (id, name, kind, description, duration_ms, stackable, max_stacks, effects, visual_color)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                kind = EXCLUDED.kind,
+                description = EXCLUDED.description,
+                duration_ms = EXCLUDED.duration_ms,
+                stackable = EXCLUDED.stackable,
+                max_stacks = EXCLUDED.max_stacks,
+                effects = EXCLUDED.effects,
+                visual_color = EXCLUDED.visual_color
+        `, [
+            id,
+            name,
+            kind,
+            description || '',
+            durationMs ?? 0,
+            stackable === true,
+            maxStacks ?? 1,
+            JSON.stringify(effects || {}),
+            visualColor ?? null
+        ]);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error saving buff:', err);
+        res.status(500).json({ error: 'Failed to save buff' });
+    }
+});
+
+app.delete('/api/admin/buffs/:id', async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    try {
+        await pool.query('DELETE FROM character_buffs WHERE buff_id = $1', [id]);
+        await pool.query('DELETE FROM buff_templates WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error deleting buff:', err);
+        res.status(500).json({ error: 'Failed to delete buff' });
+    }
+});
+
+// Listar buffs (público para HUD)
+app.get('/api/buffs', async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await pool.query('SELECT * FROM buff_templates ORDER BY id ASC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Buffs] Error loading buffs:', err);
+        res.status(500).json({ error: 'Failed to load buffs' });
+    }
+});
+
+// Conceder Buff para um personagem
+app.post('/api/admin/buffs/grant', async (req: Request, res: Response): Promise<void> => {
+    const { characterId, characterName, buffId, stacks, durationMs } = req.body;
+    try {
+        let resolvedCharacterId: number | null = characterId ?? null;
+        if (!resolvedCharacterId && characterName) {
+            const charRes = await pool.query('SELECT id FROM characters WHERE char_name = $1', [characterName]);
+            resolvedCharacterId = charRes.rows[0]?.id ?? null;
+        }
+        if (!resolvedCharacterId) {
+            res.status(400).json({ error: 'Character not found' });
+            return;
+        }
+
+        const startedAt = new Date();
+        const expiresAt = durationMs && durationMs > 0 ? new Date(Date.now() + durationMs) : null;
+        await pool.query(`
+            INSERT INTO character_buffs (character_id, buff_id, stacks, started_at, expires_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (character_id, buff_id) DO UPDATE SET
+                stacks = EXCLUDED.stacks,
+                started_at = EXCLUDED.started_at,
+                expires_at = EXCLUDED.expires_at
+        `, [resolvedCharacterId, buffId, stacks ?? 1, startedAt, expiresAt]);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error granting buff:', err);
+        res.status(500).json({ error: 'Failed to grant buff' });
+    }
+});
+
+// Listar base stats de classes
+app.get('/api/admin/class-stats', async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await pool.query('SELECT * FROM class_base_stats ORDER BY class_type ASC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Admin] Error loading class stats:', err);
+        res.status(500).json({ error: 'Failed to load class stats' });
+    }
+});
+
+// Salvar/Atualizar base stats de classe
+app.post('/api/admin/class-stats/save', async (req: Request, res: Response): Promise<void> => {
+    const {
+        classType,
+        displayName,
+        description,
+        maxHp,
+        maxMana,
+        strength,
+        dexterity,
+        intelligence,
+        vitality,
+        luck,
+        baseDamage,
+        baseDefense,
+        attackSpeed,
+        moveSpeed,
+        isActive,
+        isRanged
+    } = req.body;
+
+    try {
+        await pool.query(`
+            INSERT INTO class_base_stats (
+                class_type, display_name, description, max_hp, max_mana, strength, dexterity, intelligence, vitality, luck,
+                base_damage, base_defense, attack_speed, move_speed, is_active, is_ranged
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+            ON CONFLICT (class_type) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                description = EXCLUDED.description,
+                max_hp = EXCLUDED.max_hp,
+                max_mana = EXCLUDED.max_mana,
+                strength = EXCLUDED.strength,
+                dexterity = EXCLUDED.dexterity,
+                intelligence = EXCLUDED.intelligence,
+                vitality = EXCLUDED.vitality,
+                luck = EXCLUDED.luck,
+                base_damage = EXCLUDED.base_damage,
+                base_defense = EXCLUDED.base_defense,
+                attack_speed = EXCLUDED.attack_speed,
+                move_speed = EXCLUDED.move_speed,
+                is_active = EXCLUDED.is_active,
+                is_ranged = EXCLUDED.is_ranged
+        `, [
+            classType,
+            displayName || null,
+            description || null,
+            maxHp,
+            maxMana,
+            strength,
+            dexterity,
+            intelligence,
+            vitality,
+            luck,
+            baseDamage,
+            baseDefense,
+            attackSpeed,
+            moveSpeed,
+            isActive !== false,
+            isRanged === true
+        ]);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error saving class stats:', err);
+        res.status(500).json({ error: 'Failed to save class stats' });
+    }
+});
+
+app.delete('/api/admin/class-stats/:classType', async (req: Request, res: Response): Promise<void> => {
+    const { classType } = req.params;
+    try {
+        await pool.query('DELETE FROM class_base_stats WHERE class_type = $1', [classType]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error deleting class stats:', err);
+        res.status(500).json({ error: 'Failed to delete class stats' });
+    }
+});
+
+// Classes ativas (para selecao no client)
+app.get('/api/classes', async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await pool.query(`
+            SELECT class_type, display_name, description, is_ranged
+            FROM class_base_stats
+            WHERE is_active = true
+            ORDER BY class_type ASC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Classes] Error loading active classes:', err);
+        res.status(500).json({ error: 'Failed to load classes' });
+    }
+});
+
+// Listar zonas (para editor de mapa)
+app.get('/api/admin/zones', async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const zones = Object.values(ZONES);
+        const mapsRes = await pool.query('SELECT * FROM zone_maps');
+        const mapByZone = new Map(mapsRes.rows.map((z: any) => [z.zone_id, z]));
+
+        res.json(zones.map(zone => ({
+            id: zone.id,
+            name: zone.name,
+            width: zone.size.width,
+            height: zone.size.height,
+            imageUrl: mapByZone.get(zone.id)?.image_url || ''
+        })));
+    } catch (err) {
+        console.error('[Admin] Error loading zones:', err);
+        res.status(500).json({ error: 'Failed to load zones' });
+    }
+});
+
+// Salvar imagem de mapa da zona
+app.post('/api/admin/zone-map/save', async (req: Request, res: Response): Promise<void> => {
+    const { zoneId, imageUrl } = req.body;
+    try {
+        await pool.query(`
+            INSERT INTO zone_maps (zone_id, image_url)
+            VALUES ($1, $2)
+            ON CONFLICT (zone_id) DO UPDATE SET
+                image_url = EXCLUDED.image_url,
+                updated_at = NOW()
+        `, [zoneId, imageUrl || null]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error saving zone map:', err);
+        res.status(500).json({ error: 'Failed to save zone map' });
+    }
+});
+
+// Spawn inicial por zona (apenas para novos personagens)
+app.get('/api/admin/player-spawns', async (req: Request, res: Response): Promise<void> => {
+    const zoneId = req.query.zoneId as string;
+    if (!zoneId) {
+        res.status(400).json({ error: 'zoneId required' });
+        return;
+    }
+    try {
+        const result = await pool.query('SELECT * FROM spawn_points WHERE zone_id = $1', [zoneId]);
+        res.json(result.rows[0] || null);
+    } catch (err) {
+        console.error('[Admin] Error loading player spawn:', err);
+        res.status(500).json({ error: 'Failed to load player spawn' });
+    }
+});
+
+app.post('/api/admin/player-spawns', async (req: Request, res: Response): Promise<void> => {
+    const { zoneId, x, y } = req.body;
+    if (!zoneId || x === undefined || y === undefined) {
+        res.status(400).json({ error: 'zoneId, x, y required' });
+        return;
+    }
+    try {
+        await pool.query(`
+            INSERT INTO spawn_points (zone_id, x, y)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (zone_id) DO UPDATE SET
+                x = EXCLUDED.x,
+                y = EXCLUDED.y,
+                updated_at = NOW()
+        `, [zoneId, x, y]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error saving player spawn:', err);
+        res.status(500).json({ error: 'Failed to save player spawn' });
+    }
+});
+
+app.delete('/api/admin/player-spawns', async (req: Request, res: Response): Promise<void> => {
+    const zoneId = req.query.zoneId as string;
+    if (!zoneId) {
+        res.status(400).json({ error: 'zoneId required' });
+        return;
+    }
+    try {
+        await pool.query('DELETE FROM spawn_points WHERE zone_id = $1', [zoneId]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error deleting player spawn:', err);
+        res.status(500).json({ error: 'Failed to delete player spawn' });
+    }
+});
+
+// Listar spawns por zona
+app.get('/api/admin/spawns', async (req: Request, res: Response): Promise<void> => {
+    const zoneId = req.query.zoneId as string;
+    if (!zoneId) {
+        res.status(400).json({ error: 'zoneId required' });
+        return;
+    }
+    try {
+        const result = await pool.query('SELECT * FROM monster_spawns WHERE zone_id = $1 ORDER BY id ASC', [zoneId]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Admin] Error loading spawns:', err);
+        res.status(500).json({ error: 'Failed to load spawns' });
+    }
+});
+
+// Carregar tilemap por zona
+app.get('/api/admin/map', async (req: Request, res: Response): Promise<void> => {
+    const zoneId = req.query.zoneId as string;
+    if (!zoneId) {
+        res.status(400).json({ error: 'zoneId required' });
+        return;
+    }
+    try {
+        const result = await pool.query('SELECT * FROM zone_tiles WHERE zone_id = $1 ORDER BY id ASC', [zoneId]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Admin] Error loading map tiles:', err);
+        res.status(500).json({ error: 'Failed to load map tiles' });
+    }
+});
+
+// Salvar tilemap por zona
+app.post('/api/admin/map/save', async (req: Request, res: Response): Promise<void> => {
+    const { zoneId, tiles } = req.body;
+    if (!zoneId) {
+        res.status(400).json({ error: 'zoneId required' });
+        return;
+    }
+    try {
+        await pool.query('DELETE FROM zone_tiles WHERE zone_id = $1', [zoneId]);
+        if (Array.isArray(tiles) && tiles.length > 0) {
+            for (const tile of tiles) {
+                await pool.query(`
+                    INSERT INTO zone_tiles (zone_id, layer, tile_path, x, y)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, [zoneId, tile.layer, tile.tilePath, tile.x, tile.y]);
+            }
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error saving map tiles:', err);
+        res.status(500).json({ error: 'Failed to save map tiles' });
+    }
+});
+
+// Salvar/Atualizar spawn
+app.post('/api/admin/spawns/save', async (req: Request, res: Response): Promise<void> => {
+    const { id, zoneId, monsterId, x, y, levelOverride, respawnTime } = req.body;
+    try {
+        if (id) {
+            await pool.query(`
+                UPDATE monster_spawns
+                SET zone_id = $1, monster_id = $2, x = $3, y = $4, level_override = $5, respawn_time = $6
+                WHERE id = $7
+            `, [zoneId, monsterId, x, y, levelOverride ?? null, respawnTime ?? null, id]);
+        } else {
+            await pool.query(`
+                INSERT INTO monster_spawns (zone_id, monster_id, x, y, level_override, respawn_time)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            `, [zoneId, monsterId, x, y, levelOverride ?? null, respawnTime ?? null]);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error saving spawn:', err);
+        res.status(500).json({ error: 'Failed to save spawn' });
+    }
+});
+
+// Remover spawn
+app.delete('/api/admin/spawns/:id', async (req: Request, res: Response): Promise<void> => {
+    try {
+        await pool.query('DELETE FROM monster_spawns WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error deleting spawn:', err);
+        res.status(500).json({ error: 'Failed to delete spawn' });
     }
 });
 
@@ -157,35 +702,69 @@ app.post('/api/admin/reload', async (req: Request, res: Response): Promise<void>
 /**
  * ✅ NOVO: Salvar configuração visual de um item específico
  */
-app.post('/api/admin/visual/save-item-config', async (req: Request, res: Response): Promise<void> => {
-    const { itemId, layers } = req.body;
-    
-    if (!itemId || !layers) {
-        res.status(400).json({ error: 'itemId and layers required' });
-        return;
-    }
-
+app.post('/api/admin/visual/migrate-item-visuals', async (_req: Request, res: Response): Promise<void> => {
     try {
-        // ✅ Salvar no campo data do item
-        await pool.query(`
-            UPDATE item_templates 
-            SET data = jsonb_set(
-                COALESCE(data, '{}'::jsonb), 
-                '{visualLayers}', 
-                $1::jsonb
-            )
-            WHERE id = $2
-        `, [JSON.stringify(layers), itemId]);
-        
-        console.info(`[Admin] Visual layers saved for item: ${itemId}`);
-        
-        // ✅ Hot reload automático
-        await loadGameDataFromDB();
-        
-        res.json({ success: true });
+        const itemsRes = await pool.query(`
+            SELECT id, type, item_type, data
+            FROM item_templates
+            WHERE visual_config_id IS NULL
+              AND data ? 'visualLayers'
+              AND jsonb_typeof(data->'visualLayers') = 'array'
+              AND jsonb_array_length(data->'visualLayers') > 0
+            ORDER BY id ASC
+        `);
+
+        const nextTargetByType = new Map<string, number>();
+        const getNextTargetId = async (type: string) => {
+            if (!nextTargetByType.has(type)) {
+                const maxRes = await pool.query(
+                    'SELECT COALESCE(MAX(target_id), 0) as max FROM visual_configs WHERE type = $1',
+                    [type]
+                );
+                nextTargetByType.set(type, Number(maxRes.rows[0]?.max || 0));
+            }
+            const next = (nextTargetByType.get(type) || 0) + 1;
+            nextTargetByType.set(type, next);
+            return next;
+        };
+
+        const toVisualType = (itemType: string) => {
+            const t = String(itemType || '').toLowerCase();
+            if (t === 'weapon') return 'WEAPON';
+            if (t === 'armor') return 'ARMOR';
+            if (t === 'accessory') return 'HAT';
+            return 'ARMOR';
+        };
+
+        let migrated = 0;
+        for (const row of itemsRes.rows) {
+            const layers = row?.data?.visualLayers;
+            if (!Array.isArray(layers) || layers.length === 0) continue;
+
+            const vt = toVisualType(row.item_type || row.type);
+            const targetId = await getNextTargetId(vt);
+            const insertRes = await pool.query(
+                `INSERT INTO visual_configs (type, target_id, layers, overrides)
+                 VALUES ($1, $2, $3::jsonb, '{}'::jsonb)
+                 RETURNING id`,
+                [vt, targetId, JSON.stringify(layers)]
+            );
+
+            const visualConfigId = insertRes.rows[0]?.id;
+            if (!visualConfigId) continue;
+
+            await pool.query('UPDATE item_templates SET visual_config_id = $1 WHERE id = $2', [visualConfigId, row.id]);
+            migrated++;
+        }
+
+        if (migrated > 0) {
+            await loadGameDataFromDB();
+        }
+
+        res.json({ success: true, migrated });
     } catch (err) {
-        console.error('[Admin] Error saving item visual config:', err);
-        res.status(500).json({ error: 'Failed to save' });
+        console.error('[Admin] Error migrating item visuals:', err);
+        res.status(500).json({ error: 'Failed to migrate item visuals' });
     }
 });
 
@@ -195,18 +774,19 @@ app.post('/api/admin/visual/save-item-config', async (req: Request, res: Respons
 app.get('/api/admin/visual/item/:itemId', async (req: Request, res: Response): Promise<void> => {
     try {
         const { itemId } = req.params;
-        const result = await pool.query(
-            'SELECT data FROM item_templates WHERE id = $1',
-            [itemId]
-        );
-        
+        const result = await pool.query('SELECT visual_config_id FROM item_templates WHERE id = $1', [itemId]);
         if (result.rows.length === 0) {
             res.status(404).json({ error: 'Item not found' });
             return;
         }
-        
-        const visualLayers = result.rows[0].data?.visualLayers || [];
-        res.json({ layers: visualLayers });
+        const visualConfigId = result.rows[0].visual_config_id ?? null;
+        if (!visualConfigId) {
+            res.json({ visualConfigId: null, layers: [] });
+            return;
+        }
+        const configRes = await pool.query('SELECT layers FROM visual_configs WHERE id = $1', [visualConfigId]);
+        const layers = configRes.rows[0]?.layers || [];
+        res.json({ visualConfigId, layers });
     } catch (err) {
         console.error('[Admin] Error loading item visual:', err);
         res.status(500).json({ error: 'Failed to load' });
@@ -231,7 +811,7 @@ app.get('/api/admin/items', async (req: Request, res: Response): Promise<void> =
 app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<void> => {
     const { 
         id, name, description, type, grade, stackable, 
-        is_equipable, equip_slot, item_type
+        is_equipable, equip_slot, item_type, visual_config_id
     } = req.body;
     
     // ✅ NOVO: Log detalhado ANTES de salvar
@@ -254,9 +834,9 @@ app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<v
         const result = await pool.query(`
             INSERT INTO item_templates (
                 id, name, description, type, grade, stackable, 
-                is_equipable, equip_slot, item_type
+                is_equipable, equip_slot, item_type, visual_config_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 description = EXCLUDED.description,
@@ -265,7 +845,8 @@ app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<v
                 stackable = EXCLUDED.stackable,
                 is_equipable = EXCLUDED.is_equipable,
                 equip_slot = EXCLUDED.equip_slot,
-                item_type = EXCLUDED.item_type
+                item_type = EXCLUDED.item_type,
+                visual_config_id = EXCLUDED.visual_config_id
             RETURNING *
         `, [
             id, 
@@ -276,7 +857,8 @@ app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<v
             stackable || false,     // ✅ MUDOU: sempre boolean
             is_equipable || false,  // ✅ MUDOU: sempre boolean
             equip_slot || null,     // ✅ MUDOU: null se vazio
-            item_type || type       // ✅ MUDOU: fallback para type
+            item_type || type,      // ✅ MUDOU: fallback para type
+            visual_config_id || null
         ]);
         
         // ✅ NOVO: Log do que foi salvo
@@ -297,6 +879,12 @@ app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<v
 
 app.get('/api/items', async (req: Request, res: Response): Promise<void> => {
     try {
+        const visualConfigsRes = await pool.query('SELECT id, layers FROM visual_configs');
+        const visualConfigMap = new Map<number, any>();
+        visualConfigsRes.rows.forEach(row => {
+            if (row?.id) visualConfigMap.set(row.id, row.layers);
+        });
+
         const result = await pool.query(`
             SELECT 
                 id,
@@ -308,13 +896,15 @@ app.get('/api/items', async (req: Request, res: Response): Promise<void> => {
                 is_equipable,
                 equip_slot,
                 item_type,
-                data
+                data,
+                visual_config_id
             FROM item_templates
             ORDER BY id ASC
         `);
         
         // ✅ Formatar para o client
         const formattedItems = result.rows.map(item => ({
+            visualConfigId: item.visual_config_id ?? null,
             id: item.id,
             name: item.name,
             description: item.description,
@@ -324,7 +914,14 @@ app.get('/api/items', async (req: Request, res: Response): Promise<void> => {
             isEquipable: item.is_equipable === true,
             equipSlot: item.equip_slot || null,
             itemType: item.item_type || item.type,
-            data: item.data || {}
+            data: (() => {
+                const base = item.data || {};
+                const visualConfigId = item.visual_config_id ?? null;
+                if (visualConfigId && visualConfigMap.has(visualConfigId)) {
+                    return { ...base, visualLayers: visualConfigMap.get(visualConfigId) || [] };
+                }
+                return base;
+            })()
         }));
         
         console.log(`[API] Enviando ${formattedItems.length} templates de itens para o cliente.`);
@@ -340,41 +937,71 @@ app.get('/api/items', async (req: Request, res: Response): Promise<void> => {
 /**
  * Salvar configuração global de camadas visuais
  */
+async function loadGlobalLayersFromDB(): Promise<any[]> {
+    const res = await pool.query('SELECT * FROM global_visual_layers ORDER BY z_index ASC');
+    if (res.rows.length > 0) return res.rows;
+
+    const configPath = path.join(__dirname, '../../shared/src/data/visualLayers.json');
+    if (!fs.existsSync(configPath)) return [];
+
+    const data = fs.readFileSync(configPath, 'utf8');
+    const config = JSON.parse(data);
+    const layers = Array.isArray(config?.layers) ? config.layers : [];
+    if (layers.length === 0) return [];
+
+    await pool.query('DELETE FROM global_visual_layers');
+    for (let i = 0; i < layers.length; i++) {
+        const layer = layers[i];
+        await pool.query(`
+            INSERT INTO global_visual_layers
+              (layer_type, asset_file, x_offset, y_offset, scale, rotation, z_index, width, height)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [
+            layer.type,
+            layer.asset,
+            layer.offsetX || 0,
+            layer.offsetY || 0,
+            layer.scale || 1.0,
+            layer.rotation || 0,
+            i,
+            layer.width || 58,
+            layer.height || 58
+        ]);
+    }
+
+    const migrated = await pool.query('SELECT * FROM global_visual_layers ORDER BY z_index ASC');
+    return migrated.rows;
+}
+
 app.post('/api/admin/visual/save-global-layers', async (req: Request, res: Response): Promise<void> => {
     const { layers } = req.body;
-    
+
     if (!layers || !Array.isArray(layers)) {
         res.status(400).json({ error: 'Invalid layers data' });
         return;
     }
 
     try {
-        const configPath = path.join(__dirname, '../../shared/src/data/visualLayers.json');
-        
-        // Garantir que o diretório existe
-        const dir = path.dirname(configPath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
+        await pool.query('DELETE FROM global_visual_layers');
+        for (let i = 0; i < layers.length; i++) {
+            const layer = layers[i];
+            await pool.query(`
+                INSERT INTO global_visual_layers
+                  (layer_type, asset_file, x_offset, y_offset, scale, rotation, z_index, width, height)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `, [
+                layer.type,
+                layer.asset,
+                layer.offsetX || 0,
+                layer.offsetY || 0,
+                layer.scale || 1.0,
+                layer.rotation || 0,
+                i,
+                layer.width || 58,
+                layer.height || 58
+            ]);
         }
 
-        const config = {
-            version: '2.0',
-            lastUpdated: new Date().toISOString(),
-            layers: layers.map((layer: any, index: number) => ({
-                zIndex: index,
-                type: layer.type,
-                asset: layer.asset,
-                offsetX: layer.offsetX || 0,
-                offsetY: layer.offsetY || 0,
-                scale: layer.scale || 1.0,
-                rotation: layer.rotation || 0,
-                width: layer.width || 58,
-                height: layer.height || 58
-            }))
-        };
-
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-        
         console.info(`✅ [Admin] Configuração global de camadas salva: ${layers.length} camadas`);
         res.json({ success: true, layersCount: layers.length });
     } catch (err) {
@@ -386,22 +1013,45 @@ app.post('/api/admin/visual/save-global-layers', async (req: Request, res: Respo
 /**
  * Carregar configuração global de camadas
  */
-app.get('/api/admin/visual/global-layers', (req: Request, res: Response): void => {
+app.get('/api/admin/visual/global-layers', async (_req: Request, res: Response): Promise<void> => {
     try {
-        const configPath = path.join(__dirname, '../../shared/src/data/visualLayers.json');
-        
-        if (!fs.existsSync(configPath)) {
-            res.json({ layers: [] });
-            return;
-        }
-
-        const data = fs.readFileSync(configPath, 'utf8');
-        const config = JSON.parse(data);
-        
-        res.json(config);
+        const rows = await loadGlobalLayersFromDB();
+        const layers = rows.map((row: any) => ({
+            type: row.layer_type,
+            asset: row.asset_file,
+            offsetX: row.x_offset ?? 0,
+            offsetY: row.y_offset ?? 0,
+            scale: Number(row.scale ?? 1),
+            rotation: Number(row.rotation ?? 0),
+            width: row.width ?? 58,
+            height: row.height ?? 58,
+            zIndex: row.z_index ?? 0
+        }));
+        res.json({ layers });
     } catch (err) {
         console.error('[Admin] Error loading visual layers:', err);
         res.status(500).json({ error: 'Failed to load configuration' });
+    }
+});
+
+app.get('/api/visual/global-layers', async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const rows = await loadGlobalLayersFromDB();
+        const layers = rows.map((row: any) => ({
+            type: row.layer_type,
+            asset: row.asset_file,
+            offsetX: row.x_offset ?? 0,
+            offsetY: row.y_offset ?? 0,
+            scale: Number(row.scale ?? 1),
+            rotation: Number(row.rotation ?? 0),
+            width: row.width ?? 58,
+            height: row.height ?? 58,
+            zIndex: row.z_index ?? 0
+        }));
+        res.json({ layers });
+    } catch (err) {
+        console.error('[Visual] Error loading global layers:', err);
+        res.status(500).json({ error: 'Failed to load global layers' });
     }
 });
 
@@ -659,12 +1309,102 @@ app.post('/api/admin/player/save-visual-detailed', async (req: Request, res: Res
 
 // ==================== VISUAL CONFIGS API ====================
 
+app.get('/api/admin/visual/configs', async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await pool.query('SELECT * FROM visual_configs ORDER BY id ASC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Admin] Error loading visual configs:', err);
+        res.status(500).json({ error: 'Failed to load visual configs' });
+    }
+});
+
+app.post('/api/admin/visual/configs/save', async (req: Request, res: Response): Promise<void> => {
+    const { id, type, targetId, layers, overrides } = req.body;
+    if (!type || targetId === undefined || !Array.isArray(layers)) {
+        res.status(400).json({ error: 'Invalid visual config data' });
+        return;
+    }
+
+    try {
+        if (id) {
+            await pool.query(
+                `UPDATE visual_configs
+                 SET type = $1, target_id = $2, layers = $3::jsonb, overrides = $4::jsonb, updated_at = NOW()
+                 WHERE id = $5`,
+                [type, targetId, JSON.stringify(layers), JSON.stringify(overrides || {}), id]
+            );
+        } else {
+            await pool.query(
+                `INSERT INTO visual_configs (type, target_id, layers, overrides)
+                 VALUES ($1, $2, $3::jsonb, $4::jsonb)`,
+                [type, targetId, JSON.stringify(layers), JSON.stringify(overrides || {})]
+            );
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error saving visual config:', err);
+        res.status(500).json({ error: 'Failed to save visual config' });
+    }
+});
+
+app.delete('/api/admin/visual/configs/:id', async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    try {
+        await pool.query('UPDATE item_templates SET visual_config_id = NULL WHERE visual_config_id = $1', [id]);
+        await pool.query('DELETE FROM visual_configs WHERE id = $1', [id]);
+        await loadGameDataFromDB();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error deleting visual config:', err);
+        res.status(500).json({ error: 'Failed to delete visual config' });
+    }
+});
+
+app.post('/api/admin/visual/items/assign', async (req: Request, res: Response): Promise<void> => {
+    const { itemId, visualConfigId } = req.body;
+    if (!itemId) {
+        res.status(400).json({ error: 'itemId required' });
+        return;
+    }
+    try {
+        await pool.query('UPDATE item_templates SET visual_config_id = $1 WHERE id = $2', [
+            visualConfigId ?? null,
+            itemId
+        ]);
+        await loadGameDataFromDB();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Admin] Error assigning visual config:', err);
+        res.status(500).json({ error: 'Failed to assign visual config' });
+    }
+});
+
+
+
+
 /**
  * ✅ Retornar configs visuais para o client
  */
-app.get('/api/visual/configs', (_req: Request, res: Response): void => {
+app.get('/api/visual/configs', async (_req: Request, res: Response): Promise<void> => {
     try {
-        res.json(VISUAL_CONFIGS);
+        const result = await pool.query('SELECT * FROM visual_configs');
+        if (result.rows.length === 0) {
+            res.json(VISUAL_CONFIGS);
+            return;
+        }
+        const configs: Record<string, any> = {};
+        result.rows.forEach(row => {
+            const key = `${String(row.type).toUpperCase()}_${row.target_id}`;
+            configs[key] = {
+                id: row.id,
+                type: String(row.type).toUpperCase(),
+                targetId: row.target_id,
+                layers: row.layers || [],
+                overrides: row.overrides || {}
+            };
+        });
+        res.json({ version: 'db', lastUpdated: new Date().toISOString(), configs });
     } catch (err) {
         console.error('[Visual] Error loading configs:', err);
         res.status(500).json({ error: 'Failed to load visual configs' });
@@ -672,20 +1412,30 @@ app.get('/api/visual/configs', (_req: Request, res: Response): void => {
 });
 
 /**
- * ✅ Buscar config específica
+ * ?o. Buscar config espec??fica
  */
-app.get('/api/visual/config/:type/:targetId', (req: Request, res: Response): void => {
+app.get('/api/visual/config/:type/:targetId', async (req: Request, res: Response): Promise<void> => {
     const { type, targetId } = req.params;
-    const key = `${type.toUpperCase()}_${targetId}`;
-    
-    const config = VISUAL_CONFIGS.configs[key];
-    
-    if (!config) {
-        res.status(404).json({ error: 'Config not found' });
-        return;
+    try {
+        const result = await pool.query('SELECT * FROM visual_configs WHERE type = $1 AND target_id = $2', [
+            type.toUpperCase(),
+            Number(targetId)
+        ]);
+        if (result.rows.length === 0) {
+            const key = `${type.toUpperCase()}_${targetId}`;
+            const fallback = VISUAL_CONFIGS.configs[key];
+            if (!fallback) {
+                res.status(404).json({ error: 'Config not found' });
+                return;
+            }
+            res.json(fallback);
+            return;
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('[Visual] Error loading config:', err);
+        res.status(500).json({ error: 'Failed to load visual config' });
     }
-    
-    res.json(config);
 });
 
 
@@ -817,6 +1567,14 @@ async function loadGameDataFromDB() {
 
     MonsterRegistry.setTemplates(fullMonsterTemplates);
 
+    // Carregar Buffs/Debuffs (templates)
+    const buffsRes = await pool.query('SELECT * FROM buff_templates');
+    BuffTemplateRegistry.setTemplates(buffsRes.rows);
+
+    // Carregar base stats de classes (apenas para novos chars)
+    const classStatsRes = await pool.query('SELECT * FROM class_base_stats');
+    ClassBaseStatsRegistry.setTemplates(classStatsRes.rows);
+
     // ✅ CRÍTICO: Query explícita de TODOS os campos
     const itemsRes = await pool.query(`
         SELECT 
@@ -829,7 +1587,8 @@ async function loadGameDataFromDB() {
             is_equipable,
             equip_slot,
             item_type,
-            data
+            data,
+            visual_config_id
         FROM item_templates
         ORDER BY id ASC
     `);
@@ -837,6 +1596,12 @@ async function loadGameDataFromDB() {
     console.info(`📦 Carregados ${itemsRes.rowCount} itens do banco`);
     
     // ✅ NOVO: Log CADA item para ver o que está vindo
+    const visualConfigsRes = await pool.query('SELECT id, layers FROM visual_configs');
+    const visualConfigMap = new Map<number, any>();
+    visualConfigsRes.rows.forEach(row => {
+        if (row?.id) visualConfigMap.set(row.id, row.layers);
+    });
+
     const formattedItems = itemsRes.rows.map(item => {
         // ✅ CRÍTICO: Normalizar nomes de campos
         const normalized = {
@@ -849,8 +1614,17 @@ async function loadGameDataFromDB() {
             isEquipable: item.is_equipable === true,      // ✅ Forçar boolean
             equipSlot: item.equip_slot || null,           // ✅ Garantir null se vazio
             itemType: item.item_type || item.type,
-            data: item.data || {}
+            data: item.data || {},
+            visualConfigId: item.visual_config_id ?? null
         };
+
+        if (normalized.visualConfigId && visualConfigMap.has(normalized.visualConfigId)) {
+            const layers = visualConfigMap.get(normalized.visualConfigId);
+            normalized.data = {
+                ...(normalized.data || {}),
+                visualLayers: layers || []
+            };
+        }
         
         // ✅ NOVO: Log de cada item equipável
         if (normalized.isEquipable) {

@@ -2,7 +2,8 @@ import { Schema, type, MapSchema } from '@colyseus/schema';
 import { PlayerState } from './PlayerState';
 import { MonsterState } from './MonsterState';
 import { ProjectileState } from './ProjectileState';
-import { DroppedItemState } from './DroppedItemState'; // ← ADICIONAR
+import { DroppedItemState } from './DroppedItemState';
+import { ZoneTileState } from './ZoneTileState'; // ← ADICIONAR
 
 export class ZoneRoomState extends Schema {
   @type('string') zoneId!: string;
@@ -13,5 +14,6 @@ export class ZoneRoomState extends Schema {
   @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
   @type({ map: MonsterState }) monsters = new MapSchema<MonsterState>();
   @type({ map: ProjectileState }) projectiles = new MapSchema<ProjectileState>();
-  @type({ map: DroppedItemState }) droppedItems = new MapSchema<DroppedItemState>(); // ← ADICIONAR
+  @type({ map: DroppedItemState }) droppedItems = new MapSchema<DroppedItemState>();
+  @type({ map: ZoneTileState }) tiles = new MapSchema<ZoneTileState>(); // ← ADICIONAR
 }

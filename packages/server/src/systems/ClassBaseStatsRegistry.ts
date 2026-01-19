@@ -1,7 +1,8 @@
-import { CLASSES, type ClassType } from '@zyra/shared';
+import { CLASSES } from '@zyra/shared';
 
 export interface ClassBaseStats {
-  classType: ClassType;
+  classType: string;
+  isRanged: boolean;
   maxHp: number;
   maxMana: number;
   strength: number;
@@ -16,13 +17,14 @@ export interface ClassBaseStats {
 }
 
 export class ClassBaseStatsRegistry {
-  private static templates = new Map<ClassType, ClassBaseStats>();
+  private static templates = new Map<string, ClassBaseStats>();
 
   static setTemplates(rows: any[]) {
     this.templates.clear();
     rows.forEach(row => {
-      this.templates.set(row.class_type as ClassType, {
+      this.templates.set(row.class_type, {
         classType: row.class_type,
+        isRanged: row.is_ranged === true,
         maxHp: row.max_hp ?? 100,
         maxMana: row.max_mana ?? 50,
         strength: row.strength ?? 10,
@@ -38,13 +40,14 @@ export class ClassBaseStatsRegistry {
     });
   }
 
-  static get(classType: ClassType): ClassBaseStats {
+  static get(classType: string): ClassBaseStats {
     const fromDb = this.templates.get(classType);
     if (fromDb) return fromDb;
 
-    const fallback = CLASSES[classType];
+    const fallback = (CLASSES as any)[classType] || CLASSES.mage || CLASSES.warrior;
     return {
       classType,
+      isRanged: fallback.combat.isRanged === true,
       maxHp: fallback.baseStats.maxHp,
       maxMana: fallback.baseStats.maxMana,
       strength: fallback.baseStats.strength,

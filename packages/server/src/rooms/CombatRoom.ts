@@ -1,8 +1,9 @@
 import { Room, Client } from 'colyseus';
 import { 
   ZoneRoomState, PlayerState, MonsterState, ProjectileState, DroppedItemState,
+  ZoneTileState,
   InventorySlot, EquippedItem, GAME_CONFIG, CLASSES, ZONES, 
-   ItemRegistry, SPAWN_POINTS, MonsterRegistry, getRequiredXP 
+   ItemRegistry, MonsterRegistry, getRequiredXP 
 } from '@zyra/shared';
 import { v4 as uuid } from 'uuid';
 import { db } from '../database/db';
@@ -10,17 +11,32 @@ import { BuffManager } from '../systems/BuffManager';
 import { DropSystem } from '../systems/DropSystem';
 import { InventoryManager } from '../systems/InventoryManager';
 import { EquipmentManager } from '../systems/EquipmentManager';
+import { ClassBaseStatsRegistry } from '../systems/ClassBaseStatsRegistry';
 
 export class CombatRoom extends Room<ZoneRoomState> {
   private playerMovements = new Map<string, { dx: number; dy: number }>();
   private spawnTimers = new Map<string, number>(); 
   private activeMonsters = new Map<string, string>(); 
   private processingPickups = new Set<string>();
+  private lastBasicAttackAt = new Map<string, number>();
+  private spawnPoints = new Map<string, any>();
+  private collisionRadius = 22;
   
   private buffManager = new BuffManager();
   private dropSystem = new DropSystem();
   private inventoryManager = new InventoryManager();
   private equipmentManager = new EquipmentManager();
+  private defaultClassConfig = (CLASSES as any).mage || (CLASSES as any).warrior;
+
+  async onAuth(_client: Client, options: any) {
+    if (options?.isNew && typeof options?.charName === 'string') {
+      const exists = await db.query('SELECT 1 FROM characters WHERE char_name = $1 LIMIT 1', [options.charName]);
+      if (exists.rows.length > 0) {
+        throw new Error('NAME_TAKEN');
+      }
+    }
+    return true;
+  }
 
  async onCreate(options: any) {
     this.setState(new ZoneRoomState());
@@ -33,226 +49,212 @@ export class CombatRoom extends Room<ZoneRoomState> {
     this.state.width = zoneConfig.size.width;
     this.state.height = zoneConfig.size.height;
 
+    try {
+      const tilesRes = await db.query(
+        'SELECT layer, tile_path, x, y FROM zone_tiles WHERE zone_id = $1',
+        [this.state.zoneId]
+      );
+      tilesRes.rows.forEach((row: any) => {
+        const tile = new ZoneTileState();
+        tile.layer = row.layer;
+        tile.tilePath = row.tile_path;
+        tile.x = row.x;
+        tile.y = row.y;
+        const key = `${tile.layer}:${tile.x},${tile.y}`;
+        this.state.tiles.set(key, tile);
+      });
+    } catch (err: any) {
+      console.error('[CombatRoom] Erro ao carregar tiles da zona:', err.message);
+    }
+
     // --- MENSAGENS DE INVENTÁRIO & EQUIPAMENTO ---
     this.onMessage('inventory:move', (client, data: { from: number; to: number }) => {
-        const player = this.state.players.get(client.sessionId);
-        if (player) this.inventoryManager.moveItem(player, data.from, data.to);
+      const player = this.state.players.get(client.sessionId);
+      if (player) this.inventoryManager.moveItem(player, data.from, data.to);
     });
 
-    // ✅ MENSAGEM DE EQUIPAR (CORRIGIDA)
     this.onMessage('equipment:equip', async (client, data: { inventorySlot: number }) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player) return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
 
-        try {
-            // Buscar charId
-            const charRes = await db.query(
-                'SELECT id FROM characters WHERE char_name = $1', 
-                [player.username]
-            );
-            const charId = charRes.rows[0]?.id;
+      try {
+        const charRes = await db.query('SELECT id FROM characters WHERE char_name = $1', [player.username]);
+        const charId = charRes.rows[0]?.id;
+        if (!charId) return;
 
-            if (!charId) {
-                console.error('[Equip] Character not found in DB');
-                return;
-            }
+        const itemRes = await db.query('SELECT * FROM items WHERE player_id = $1 AND slot_position = $2', [
+          charId,
+          data.inventorySlot
+        ]);
+        if (itemRes.rows.length === 0) return;
 
-            // Buscar item no banco
-            const itemRes = await db.query(
-                'SELECT * FROM items WHERE player_id = $1 AND slot_position = $2',
-                [charId, data.inventorySlot]
-            );
+        const item = itemRes.rows[0];
+        const template = ItemRegistry.getTemplate(item.item_id);
+        if (!template || !template.equipSlot) return;
 
-            if (itemRes.rows.length === 0) {
-                console.warn('[Equip] No item found in slot', data.inventorySlot);
-                return;
-            }
+        const success = this.equipmentManager.equipFromInventory(player, data.inventorySlot);
+        if (!success) return;
 
-            const item = itemRes.rows[0];
-            
-            // ✅ Buscar template para pegar o slot
-            const template = ItemRegistry.getTemplate(item.item_id);
-            
-            if (!template || !template.equipSlot) {
-                console.warn('[Equip] Item has no equipSlot');
-                return;
-            }
-
-            // Equipar
-            const success = this.equipmentManager.equipFromInventory(player, data.inventorySlot);
-
-            if (success) {
-                const targetSlot = template.equipSlot;
-
-                // Salvar no banco
-                await db.query(`
-                    INSERT INTO character_equipment (player_id, slot, item_id)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (player_id, slot) 
-                    DO UPDATE SET item_id = EXCLUDED.item_id
-                `, [charId, targetSlot, item.item_id]);
-
-                // Remover do inventário
-                await db.query('DELETE FROM items WHERE id = $1', [item.id]);
-
-                console.log(`✅ [Equip] ${player.username} equipped ${item.item_id} in ${targetSlot}`);
-            }
-        } catch (err: any) {
-            console.error('[Equip] Error:', err.message);
-        }
+        const targetSlot = template.equipSlot;
+        await db.query(
+          `
+            INSERT INTO character_equipment (player_id, slot, item_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (player_id, slot)
+            DO UPDATE SET item_id = EXCLUDED.item_id
+          `,
+          [charId, targetSlot, item.item_id]
+        );
+        await db.query('DELETE FROM items WHERE id = $1', [item.id]);
+      } catch (err: any) {
+        console.error('[Equip] Error:', err.message);
+      }
     });
 
-    // ✅ MENSAGEM DE DESEQUIPAR
     this.onMessage('equipment:unequip', async (client, data: { equipmentSlot: string }) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player) return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
 
-        try {
-            const charRes = await db.query(
-                'SELECT id FROM characters WHERE char_name = $1', 
-                [player.username]
-            );
-            const charId = charRes.rows[0]?.id;
+      try {
+        const charRes = await db.query('SELECT id FROM characters WHERE char_name = $1', [player.username]);
+        const charId = charRes.rows[0]?.id;
+        if (!charId) return;
 
-            if (!charId) return;
+        const equippedItem = player.equipment.equipped.get(data.equipmentSlot);
+        if (!equippedItem) return;
 
-            // Buscar item equipado
-            const equippedItem = player.equipment.equipped.get(data.equipmentSlot);
-            if (!equippedItem) {
-                console.warn('[Unequip] No item in slot', data.equipmentSlot);
-                return;
-            }
+        const itemId = equippedItem.itemId;
+        const success = this.equipmentManager.unequipToInventory(player, data.equipmentSlot);
+        if (!success) return;
 
-            const itemId = equippedItem.itemId;
-
-            // Desequipar
-            const success = this.equipmentManager.unequipToInventory(player, data.equipmentSlot);
-
-            if (success) {
-                // Remover do banco de equipamentos
-                await db.query(
-                    'DELETE FROM character_equipment WHERE player_id = $1 AND slot = $2',
-                    [charId, data.equipmentSlot]
-                );
-
-                // Adicionar de volta ao inventário
-                await db.query(`
-                    INSERT INTO items (player_id, item_id, quantity, slot_position, is_equipped)
-                    VALUES ($1, $2, 1, (
-                        SELECT COALESCE(MAX(slot_position), -1) + 1 
-                        FROM items WHERE player_id = $1
-                    ), false)
-                `, [charId, itemId]);
-
-                console.log(`✅ [Unequip] ${player.username} unequipped from ${data.equipmentSlot}`);
-            }
-        } catch (err: any) {
-            console.error('[Unequip] Error:', err.message);
-        }
+        await db.query('DELETE FROM character_equipment WHERE player_id = $1 AND slot = $2', [charId, data.equipmentSlot]);
+        await db.query(
+          `
+            INSERT INTO items (player_id, item_id, quantity, slot_position, is_equipped)
+            VALUES ($1, $2, 1, (
+              SELECT COALESCE(MAX(slot_position), -1) + 1
+              FROM items WHERE player_id = $1
+            ), false)
+          `,
+          [charId, itemId]
+        );
+      } catch (err: any) {
+        console.error('[Unequip] Error:', err.message);
+      }
     });
 
-    // --- MENSAGEM DE COLETA MANUAL ---
     this.onMessage('item:pickup', async (client, data: { dropId: string }) => {
-       await this.processPickup(client.sessionId, data.dropId);
+      await this.processPickup(client.sessionId, data.dropId);
     });
 
-    // --- MOVIMENTO E COMBATE ---
-    this.onMessage('move', (client, message: { dx: number, dy: number }) => {
-        this.playerMovements.set(client.sessionId, { dx: message.dx, dy: message.dy });
+    // --- MOVIMENTO / SELEÇÃO / COMBATE ---
+    this.onMessage('move', (client, message: { dx: number; dy: number }) => {
+      this.playerMovements.set(client.sessionId, { dx: message.dx, dy: message.dy });
     });
 
     this.onMessage('stop', (client) => {
-        this.playerMovements.delete(client.sessionId);
+      this.playerMovements.delete(client.sessionId);
     });
 
-    this.onMessage('attack', (client, message: { targetX: number, targetY: number }) => {
-        this.handleAttack(client, message);
+    this.onMessage('target', (client, message: { targetId: string | null }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      player.targetId = message?.targetId ? String(message.targetId) : '';
+    });
+
+    this.onMessage('attack', (client, message: { targetX: number; targetY: number }) => {
+      this.handleAttack(client, message);
     });
 
     this.setSimulationInterval(() => this.update(), 1000 / GAME_CONFIG.TICK_RATE);
-    this.initializeSpawns();
-} // ✅ FECHAR onCreate corretamente
+    void this.initializeSpawns();
+  }
 
-  
-
-async onJoin(client: Client, options: any) {
+  async onJoin(client: Client, options: any) {
     const { charName, classType, isNew, dbId, bodyColor, eyeColor } = options;
-    
+
     try {
-      let characterData;
-      
+      let characterData: any;
+
       if (isNew) {
-        // Criar novo personagem COM cores customizadas
+        const chosenClassType = typeof classType === 'string' ? classType : this.getFallbackClassType();
         const newCharRes = await db.query(
-          `INSERT INTO characters (
-            account_id, char_name, class_type, level, gold, session_id,
-            body_color, eye_color
-          ) 
-          VALUES ($1, $2, $3, 1, 100, $4, $5, $6) 
-          RETURNING *`,
-          [
-            dbId, 
-            charName, 
-            classType || 'warrior', 
-            client.sessionId,
-            bodyColor || '#FF6B6B',  // Default vermelho
-            eyeColor || '#FFFFFF'    // Default branco
-          ]
+          `
+            INSERT INTO characters (
+              account_id, char_name, class_type, level, gold, session_id,
+              body_color, eye_color
+            )
+            VALUES ($1, $2, $3, 1, 100, $4, $5, $6)
+            RETURNING *
+          `,
+          [dbId, charName, chosenClassType, client.sessionId, bodyColor || '#FF6B6B', eyeColor || '#FFFFFF']
         );
         characterData = newCharRes.rows[0];
-        
+
         await db.query('INSERT INTO inventory (player_id) VALUES ($1)', [characterData.id]);
-        await db.query(
-          `INSERT INTO items (player_id, item_id, quantity, slot_position) 
-           VALUES ($1, $2, 1, 0)`,
-          [characterData.id, 'sword_ink_blade']
-        );
-        
-        console.log(`✅ [CombatRoom] Novo personagem criado: ${charName} (${bodyColor}, ${eyeColor})`);
+        await db.query(`INSERT INTO items (player_id, item_id, quantity, slot_position) VALUES ($1, $2, 1, 0)`, [
+          characterData.id,
+          'sword_ink_blade'
+        ]);
       } else {
-        // Carregar personagem existente
         const charRes = await db.query('SELECT * FROM characters WHERE id = $1', [dbId]);
         characterData = charRes.rows[0];
-        await db.query(
-          'UPDATE characters SET session_id = $1 WHERE id = $2', 
-          [client.sessionId, dbId]
-        );
+        await db.query('UPDATE characters SET session_id = $1 WHERE id = $2', [client.sessionId, dbId]);
       }
 
-      const classConfig = CLASSES[characterData.class_type as keyof typeof CLASSES];
+      const classStats = ClassBaseStatsRegistry.get(characterData.class_type);
+      const classConfig = this.getClassConfig(characterData.class_type);
+
       const player = new PlayerState();
-      
       player.playerId = client.sessionId;
       player.username = characterData.char_name;
       player.classType = characterData.class_type;
+      player.characterId = characterData.id;
       player.level = characterData.level || 1;
       player.experience = Number(characterData.experience) || 0;
+      player.experienceToNext = getRequiredXP(player.level);
       player.gold = characterData.gold || 0;
-      player.maxHp = characterData.max_hp || classConfig.baseStats.maxHp;
-      player.currentHp = player.maxHp;
-      player.damage = characterData.damage || classConfig.combat.baseDamage;
+
+      player.baseMaxHp = characterData.max_hp || classStats.maxHp || classConfig.baseStats.maxHp;
+      player.baseMaxMana = characterData.max_mana || classStats.maxMana || classConfig.baseStats.maxMana;
+      player.baseStrength = classStats.strength || classConfig.baseStats.strength;
+      player.baseDexterity = classStats.dexterity || classConfig.baseStats.dexterity;
+      player.baseIntelligence = classStats.intelligence || classConfig.baseStats.intelligence;
+      player.baseVitality = classStats.vitality || classConfig.baseStats.vitality;
+      player.baseLuck = classStats.luck || 5;
+      player.baseDamage = characterData.damage || classStats.baseDamage || classConfig.combat.baseDamage;
+      player.baseDefense = classStats.baseDefense || 0;
+      player.baseCritChance = player.baseCritChance || 5;
+      player.baseCritDamage = player.baseCritDamage || 150;
+      player.baseAttackSpeed = player.baseAttackSpeed || 100;
+      player.baseMoveSpeed = player.baseMoveSpeed || 100;
+
+      player.currentHp = player.baseMaxHp;
+      player.currentMana = player.baseMaxMana;
       player.isAlive = true;
       player.x = this.state.width / 2;
       player.y = this.state.height / 2;
-      
-      // ==================== CORES CUSTOMIZADAS ====================
+
       player.bodyColor = characterData.body_color || '#FF6B6B';
-      player.eyeColor = characterData.eye_color || '#FFFFFF'; // ✅ MANTIDO
-      
-      // ==================== VISUAL SYSTEM ====================
+      player.eyeColor = characterData.eye_color || '#FFFFFF';
       player.eyeTypeId = characterData.eye_type_id || 1;
-      
-      // Visuais LEGADOS (mantidos para compatibilidade)
       player.visualBody = characterData.visual_body || 'ball_red';
       player.visualFace = characterData.visual_face || 'eyes_determined';
       player.visualHat = characterData.visual_hat || 'none';
 
       await this.syncInventoryFromDB(characterData.id, player);
+      await this.syncEquipmentFromDB(characterData.id, player);
+      await this.buffManager.loadActiveBuffs(player, characterData.id);
+      this.equipmentManager.recalculateStats(player);
+      player.currentHp = Math.min(player.currentHp, player.maxHp);
+      player.currentMana = Math.min(player.currentMana, player.maxMana);
+
       this.state.players.set(client.sessionId, player);
-      
-      console.log(`👤 [CombatRoom] ${player.username} entrou (eyeType=${player.eyeTypeId}, ${player.bodyColor})`);
     } catch (err: any) {
-      console.error("❌ [CombatRoom] Erro onJoin:", err.message);
+      const msg = String(err?.message || '');
+      if (msg.includes('NAME_TAKEN')) throw err;
+      if (err?.code === '23505') throw new Error('NAME_TAKEN');
+      console.error('❌ [CombatRoom] Erro onJoin:', err?.message || err);
       client.leave();
     }
   }
@@ -266,7 +268,10 @@ async onJoin(client: Client, options: any) {
     this.updateSpawnTimers(deltaTime);
     this.updateDroppedItems();
     this.checkItemPickupAuto(); 
-    this.state.players.forEach(p => this.buffManager.updateBuffs(p));
+    this.state.players.forEach(p => {
+      const statsDirty = this.buffManager.updateBuffs(p);
+      if (statsDirty) this.equipmentManager.recalculateStats(p);
+    });
   }
 
   // Refatorado para usar uma função comum de processamento
@@ -325,10 +330,11 @@ async onJoin(client: Client, options: any) {
     this.playerMovements.forEach((mov, id) => {
       const p = this.state.players.get(id);
       if (!p || !p.isAlive) return;
-      const speed = CLASSES[p.classType as keyof typeof CLASSES].movement.baseSpeed;
+      const speed = this.getClassConfig(p.classType).movement.baseSpeed;
       const mag = Math.hypot(mov.dx, mov.dy) || 1;
       p.x += (mov.dx / mag) * speed;
       p.y += (mov.dy / mag) * speed;
+      this.resolvePlayerCollisions(p);
       p.x = Math.max(0, Math.min(this.state.width, p.x));
       p.y = Math.max(0, Math.min(this.state.height, p.y));
     });
@@ -339,9 +345,13 @@ async onJoin(client: Client, options: any) {
       let target = this.state.players.get(m.targetPlayerId);
       if (!target || !target.isAlive) {
         m.targetPlayerId = '';
+        let lowestHp: PlayerState | null = null;
         this.state.players.forEach(p => {
-          if (p.isAlive && Math.hypot(m.x - p.x, m.y - p.y) < m.aggroRange) m.targetPlayerId = p.playerId;
+          if (!p.isAlive) return;
+          if (Math.hypot(m.x - p.x, m.y - p.y) >= m.aggroRange) return;
+          if (!lowestHp || p.currentHp < lowestHp.currentHp) lowestHp = p;
         });
+        if (lowestHp) m.targetPlayerId = lowestHp.playerId;
         if (m.targetPlayerId === '') {
           this.moveMonsterTo(m, m.spawnX, m.spawnY);
           return;
@@ -356,6 +366,7 @@ async onJoin(client: Client, options: any) {
       }
 
       if (dist > 35) this.moveMonsterTo(m, target!.x, target!.y);
+      this.resolveMonsterCollisions(m);
       if (dist < 45) {
         target!.currentHp -= m.damage / 30;
         if (target!.currentHp <= 0) { target!.isAlive = false; target!.currentHp = 0; }
@@ -367,17 +378,29 @@ async onJoin(client: Client, options: any) {
     const player = this.state.players.get(client.sessionId);
     if (!player || !player.isAlive) return;
 
-    const classConfig = CLASSES[player.classType as keyof typeof CLASSES];
+    const targetId = player.targetId || '';
+    const target = targetId ? this.state.monsters.get(targetId) : undefined;
+    if (!target || target.isDead) return;
+
+    const classConfig = this.getClassConfig(player.classType);
+    const now = Date.now();
+    const cooldownMs = classConfig.combat.isRanged ? 1500 : 500;
+
     if (classConfig.combat.isRanged) {
-      this.createProjectile(player, message.targetX, message.targetY);
+      if (Math.hypot(target.x - player.x, target.y - player.y) > classConfig.combat.attackRange) return;
+      const lastAttackAt = this.lastBasicAttackAt.get(client.sessionId) || 0;
+      if (now - lastAttackAt < cooldownMs) return;
+      this.lastBasicAttackAt.set(client.sessionId, now);
+      this.createProjectile(player, target.x, target.y);
     } else {
-      this.state.monsters.forEach((monster, id) => {
-        if (Math.hypot(monster.x - player.x, monster.y - player.y) < classConfig.combat.attackRange) {
-          monster.currentHp -= player.damage;
-          if (monster.targetPlayerId === '') monster.targetPlayerId = player.playerId;
-          if (monster.currentHp <= 0) this.onMonsterKilled(monster, player, id);
-        }
-      });
+      if (Math.hypot(target.x - player.x, target.y - player.y) < classConfig.combat.attackRange) {
+        const lastAttackAt = this.lastBasicAttackAt.get(client.sessionId) || 0;
+        if (now - lastAttackAt < cooldownMs) return;
+        this.lastBasicAttackAt.set(client.sessionId, now);
+        target.currentHp -= player.damage;
+        if (target.targetPlayerId === '') target.targetPlayerId = player.playerId;
+        if (target.currentHp <= 0) this.onMonsterKilled(target, player, targetId);
+      }
     }
   }
 
@@ -386,12 +409,16 @@ async onJoin(client: Client, options: any) {
     if (!monsterTemplate) return;
 
     // 1. Recompensas de Ouro e XP
-    const rewardXP = monsterTemplate.rewards?.baseExp || 10;
+    const baseXP = monsterTemplate.rewards?.baseExp || 10;
+    const expBonusPercent = this.buffManager.getTotalBonusPercent(killer, 'expBonus');
+    const rewardXP = Math.floor(baseXP * (1 + expBonusPercent / 100));
     const rewardGold = Math.floor(
       Math.random() * ((monsterTemplate.rewards?.goldMax || 5) - (monsterTemplate.rewards?.goldMin || 1) + 1)
     ) + (monsterTemplate.rewards?.goldMin || 1);
+    const goldBonusPercent = this.buffManager.getTotalBonusPercent(killer, 'goldBonus');
+    const finalGold = Math.floor(rewardGold * (1 + goldBonusPercent / 100));
 
-    killer.gold += rewardGold;
+    killer.gold += finalGold;
     killer.experience += rewardXP;
 
     // 2. Lógica de Level Up
@@ -442,8 +469,8 @@ async onJoin(client: Client, options: any) {
   */
     
     this.state.monsters.delete(monsterId);
-    const sp = SPAWN_POINTS[this.state.zoneId]?.find(s => this.activeMonsters.get(s.id) === monsterId);
-    if (sp) this.spawnTimers.set(sp.id, (sp.respawnTime || 5) * 1000);
+    const sp = Array.from(this.spawnPoints.values()).find(s => this.activeMonsters.get(String(s.id)) === monsterId);
+    if (sp) this.spawnTimers.set(String(sp.id), ((sp.respawn_time ?? sp.respawnTime) || 5) * 1000);
   }
 
   private spawnDroppedItem(itemId: string, qty: number, x: number, y: number) {
@@ -487,29 +514,56 @@ async onJoin(client: Client, options: any) {
     }
   }
 
-  private initializeSpawns() {
-    const spawnPoints = SPAWN_POINTS[this.state.zoneId] || [];
-    spawnPoints.forEach(spawn => this.spawnMonsterAtPoint(spawn.id, spawn));
+  private async syncEquipmentFromDB(charId: number, state: PlayerState) {
+    try {
+      const res = await db.query('SELECT * FROM character_equipment WHERE player_id = $1', [charId]);
+      state.equipment.equipped.clear();
+
+      res.rows.forEach(row => {
+        const eq = new EquippedItem();
+        eq.itemId = row.item_id;
+        eq.slot = row.slot;
+        state.equipment.equipped.set(row.slot, eq);
+      });
+    } catch (e: any) {
+      console.error('[CombatRoom] Erro ao carregar equipment:', e?.message || e);
+    }
+  }
+
+  private async initializeSpawns() {
+    const res = await db.query('SELECT * FROM monster_spawns WHERE zone_id = $1 ORDER BY id ASC', [this.state.zoneId]);
+    this.spawnPoints.clear();
+    res.rows.forEach((row: any) => {
+      this.spawnPoints.set(String(row.id), row);
+      this.spawnMonsterAtPoint(String(row.id), row);
+    });
   }
 
   private spawnMonsterAtPoint(spawnId: string, spawnPoint: any) {
-    const template = MonsterRegistry.getTemplate(spawnPoint.monsterId); // Usando MonsterRegistry
+    const template = MonsterRegistry.getTemplate(spawnPoint.monster_id || spawnPoint.monsterId); // Usando MonsterRegistry
     if (!template) return;
+    const stats = (template.stats || {}) as any;
+    const behavior = (template.behavior || {}) as any;
+    const templateAny = template as any;
     const monster = new MonsterState();
     monster.id = uuid(); 
     monster.templateId = template.id;
     monster.name = template.name; 
+    monster.type = (template.type || 'beast') as any;
     monster.x = spawnPoint.x; 
     monster.y = spawnPoint.y;
     monster.spawnX = spawnPoint.x; 
     monster.spawnY = spawnPoint.y;
-    monster.maxHp = template.stats.maxHp; 
-    monster.currentHp = template.stats.maxHp;
-    monster.damage = template.stats.damage; 
-    monster.speed = template.stats.speed;
-    monster.aggroRange = template.behavior.aggroRange; 
-    monster.leashRange = template.behavior.leashRange;
-    monster.aggroType = template.behavior.aggroType;
+    monster.level = spawnPoint.level_override ?? template.level ?? 1;
+    monster.maxHp = stats.maxHp ?? 100; 
+    monster.currentHp = stats.maxHp ?? 100;
+    monster.damage = stats.damage ?? 10; 
+    monster.speed = stats.speed ?? 1;
+    monster.defense = stats.defense ?? templateAny.defense ?? 0;
+    monster.attackSpeed = stats.attackSpeed ?? templateAny.attack_speed ?? 1.5;
+    monster.aggroRange = behavior.aggroRange ?? 0; 
+    monster.leashRange = behavior.leashRange ?? 200;
+    monster.aggroType = behavior.aggroType ?? 'passive';
     
     this.state.monsters.set(monster.id, monster);
     this.activeMonsters.set(spawnId, monster.id);
@@ -548,10 +602,56 @@ async onJoin(client: Client, options: any) {
     this.spawnTimers.forEach((time, id) => {
       const newTime = time - (dt * 1000);
       if (newTime <= 0) {
-        const sp = SPAWN_POINTS[this.state.zoneId]?.find(s => s.id === id);
+        const sp = this.spawnPoints.get(id);
         if (sp) this.spawnMonsterAtPoint(id, sp);
         this.spawnTimers.delete(id);
       } else this.spawnTimers.set(id, newTime);
+    });
+  }
+
+  private resolvePlayerCollisions(player: PlayerState) {
+    const radius = this.collisionRadius;
+    this.state.players.forEach(other => {
+      if (other.playerId === player.playerId) return;
+      const dx = player.x - other.x;
+      const dy = player.y - other.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist >= radius * 2) return;
+      const push = (radius * 2 - dist) / 2;
+      player.x += (dx / dist) * push;
+      player.y += (dy / dist) * push;
+    });
+    this.state.monsters.forEach(monster => {
+      const dx = player.x - monster.x;
+      const dy = player.y - monster.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist >= radius * 2) return;
+      const push = (radius * 2 - dist);
+      player.x += (dx / dist) * push;
+      player.y += (dy / dist) * push;
+    });
+  }
+
+  private resolveMonsterCollisions(monster: MonsterState) {
+    const radius = this.collisionRadius;
+    this.state.monsters.forEach(other => {
+      if (other.id === monster.id) return;
+      const dx = monster.x - other.x;
+      const dy = monster.y - other.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist >= radius * 2) return;
+      const push = (radius * 2 - dist) / 2;
+      monster.x += (dx / dist) * push;
+      monster.y += (dy / dist) * push;
+    });
+    this.state.players.forEach(player => {
+      const dx = monster.x - player.x;
+      const dy = monster.y - player.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist >= radius * 2) return;
+      const push = (radius * 2 - dist);
+      monster.x += (dx / dist) * push;
+      monster.y += (dy / dist) * push;
     });
   }
 
@@ -578,8 +678,19 @@ async onJoin(client: Client, options: any) {
     this.state.projectiles.set(projectile.id, projectile);
   }
 
+  private getClassConfig(classType: string) {
+    return (CLASSES as any)[classType] || this.defaultClassConfig;
+  }
+
+  private getFallbackClassType() {
+    if ((CLASSES as any).mage) return 'mage';
+    if ((CLASSES as any).warrior) return 'warrior';
+    return Object.keys(CLASSES)[0] || 'warrior';
+  }
+
   onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
     this.playerMovements.delete(client.sessionId);
+    this.lastBasicAttackAt.delete(client.sessionId);
   }
 }

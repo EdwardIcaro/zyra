@@ -6,4 +6,5 @@ export class BuffState extends Schema {
   @type('number') stacks: number = 1;
   @type('number') startedAt: number = 0;
   @type('number') expiresAt: number = 0;
+  @type('number') lastTickAt: number = 0;
 }

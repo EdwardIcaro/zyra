@@ -113,6 +113,7 @@ model ItemTemplate {
   is_equipable Boolean?  @default(false)
   equip_slot   String?   @db.VarChar(20)
   item_type    String?   @default("material") @db.VarChar(20)
+  visualConfigId Int?     @map("visual_config_id")
   data         Json?     @default("{}")
   created_at   DateTime? @default(now()) @db.Timestamp(6)
 
@@ -126,11 +127,88 @@ model MonsterTemplate {
   type          String?       @db.VarChar(20)
   appearance    Json?
   stats         Json?
+  attackSpeed   Float?        @map("attack_speed")
+  defense       Int?          @default(0)
   behavior      Json?
   rewards       Json?
   monster_drops MonsterDrop[]
 
   @@map("monster_templates")
+}
+
+model MonsterSpawn {
+  id           Int      @id @default(autoincrement())
+  zoneId       String   @map("zone_id") @db.VarChar(50)
+  monsterId    String   @map("monster_id") @db.VarChar(50)
+  x            Int
+  y            Int
+  levelOverride Int?    @map("level_override")
+  respawnTime  Int?     @map("respawn_time")
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([zoneId], map: "idx_monster_spawns_zone")
+  @@map("monster_spawns")
+}
+
+model ZoneMap {
+  zoneId      String   @id @map("zone_id") @db.VarChar(50)
+  imageUrl    String?  @map("image_url") @db.VarChar(255)
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("zone_maps")
+}
+
+model ZoneTile {
+  id        Int    @id @default(autoincrement())
+  zoneId    String @map("zone_id") @db.VarChar(50)
+  layer     String @db.VarChar(20)
+  tilePath  String @map("tile_path") @db.VarChar(255)
+  x         Int
+  y         Int
+
+  @@index([zoneId], map: "idx_zone_tiles_zone")
+  @@unique([zoneId, layer, x, y], map: "unique_zone_tile")
+  @@map("zone_tiles")
+}
+
+model SpawnPoint {
+  zoneId    String   @id @map("zone_id") @db.VarChar(50)
+  x         Int
+  y         Int
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("spawn_points")
+}
+
+model UiConfig {
+  uiName    String   @id @map("ui_name") @db.VarChar(100)
+  config    Json     @map("config_json")
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("ui_configs")
+}
+
+model ClassBaseStats {
+  classType   String   @id @map("class_type") @db.VarChar(50)
+  displayName String?  @map("display_name") @db.VarChar(100)
+  description String?  @db.Text
+  maxHp       Int?     @default(100) @map("max_hp")
+  maxMana     Int?     @default(50) @map("max_mana")
+  strength    Int?     @default(10)
+  dexterity   Int?     @default(10)
+  intelligence Int?    @default(10)
+  vitality    Int?     @default(10)
+  luck        Int?     @default(5)
+  baseDamage  Int?     @default(10) @map("base_damage")
+  baseDefense Int?     @default(0) @map("base_defense")
+  attackSpeed Float?   @default(1.0) @map("attack_speed")
+  moveSpeed   Float?   @default(4.0) @map("move_speed")
+  isActive    Boolean  @default(true) @map("is_active")
+  isRanged    Boolean  @default(false) @map("is_ranged")
+
+  @@map("class_base_stats")
 }
 
 model MonsterDrop {
@@ -144,6 +222,47 @@ model MonsterDrop {
 
   @@unique([monsterId, itemId], map: "unique_monster_item")
   @@map("monster_drops")
+}
+
+enum VisualType {
+  EYE
+  HAT
+  MASK
+  WEAPON
+  ARMOR
+  PET
+}
+
+model VisualConfig {
+  id        Int        @id @default(autoincrement())
+  type      VisualType
+  targetId  Int        @map("target_id")
+  layers    Json
+  overrides Json       @default("{}")
+  createdAt DateTime?  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime?  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@unique([type, targetId], map: "visual_configs_type_target_id_key")
+  @@index([type], map: "visual_configs_type_idx")
+  @@map("visual_configs")
+}
+
+model GlobalVisualLayer {
+  id        Int       @id @default(autoincrement())
+  layerType String    @map("layer_type") @db.VarChar(20)
+  assetFile String    @map("asset_file") @db.VarChar(100)
+  xOffset   Int?      @default(0) @map("x_offset")
+  yOffset   Int?      @default(0) @map("y_offset")
+  scale     Decimal?  @default(1.0) @db.Decimal(4, 2)
+  rotation  Decimal?  @default(0) @db.Decimal(5, 2)
+  zIndex    Int       @default(0) @map("z_index")
+  width     Int       @default(58)
+  height    Int       @default(58)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([layerType], map: "idx_global_visual_layers_type")
+  @@map("global_visual_layers")
 }
 
 model global_visual_settings {

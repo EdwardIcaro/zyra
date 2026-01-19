@@ -10,7 +10,8 @@ export * from './schema/BuffState';
 export * from './schema/MonsterState';
 export * from './schema/ZoneRoomState';
 export * from './schema/DroppedItemState';
-export * from './schema/EquipmentState'; // ← NOVO
+export * from './schema/EquipmentState';
+export * from './schema/ZoneTileState';
 
 // Types
 export * from './types/classes';
@@ -30,7 +31,7 @@ export * from './constants/zones-config';
 //export * from './constants/monsters-config';
 export * from './constants/spawn-points';
 export * from './constants/buffs-config';
-//export * from './constants/drop-tables';
+export * from './constants/drop-tables';
 export * from './constants/equipment-config';
 export * from './constants/level-table'; // ← NOVO
 

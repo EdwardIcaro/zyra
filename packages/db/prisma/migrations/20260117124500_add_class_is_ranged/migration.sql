@@ -1,0 +1,2 @@
+ALTER TABLE class_base_stats
+    ADD COLUMN IF NOT EXISTS is_ranged BOOLEAN NOT NULL DEFAULT false;

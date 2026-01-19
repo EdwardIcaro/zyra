@@ -49,6 +49,28 @@ router.get('/users', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * GET /api/admin/characters?q=query
+ * Lista personagens por nome (para autocomplete)
+ */
+router.get('/characters', async (req: Request, res: Response): Promise<void> => {
+    const query = (req.query.q as string) || '';
+    try {
+        const result = await pool.query(`
+            SELECT id, char_name
+            FROM characters
+            WHERE char_name ILIKE $1
+            ORDER BY char_name ASC
+            LIMIT 50
+        `, [`%${query}%`]);
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[AdminUsers] Error listing characters:', err);
+        res.status(500).json({ error: 'Failed to list characters' });
+    }
+});
+
+/**
  * GET /api/admin/user/:accountId
  * Detalhes completos da conta + personagens
  */

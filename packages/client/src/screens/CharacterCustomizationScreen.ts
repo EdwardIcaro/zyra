@@ -22,14 +22,17 @@ export class CharacterCustomizationScreen extends Container {
   };
 
   private onConfirm?: (data: CustomizationData) => void;
+  private onCancel?: () => void;
 
   constructor(
     private charName: string,
     private classType: string,
-    confirmCallback: (data: CustomizationData) => void
+    confirmCallback: (data: CustomizationData) => void,
+    cancelCallback?: () => void
   ) {
     super();
     this.onConfirm = confirmCallback;
+    this.onCancel = cancelCallback;
     this.setupUI();
   }
 
@@ -45,7 +48,7 @@ export class CharacterCustomizationScreen extends Container {
 
     // Title
     const title = new Text({
-      text: 'CUSTOMIZAÇÃO DE APARÊNCIA',
+      text: 'CHARACTER CUSTOMIZATION',
       style: {
         fontFamily: 'Georgia',
         fontSize: 48,
@@ -58,7 +61,7 @@ export class CharacterCustomizationScreen extends Container {
 
     // Subtitle
     const subtitle = new Text({
-      text: `Personagem: ${this.charName} | Classe: ${this.classType}`,
+      text: `Character: ${this.charName} | Class: ${this.classType}`,
       style: {
         fontFamily: 'Arial',
         fontSize: 20,
@@ -80,17 +83,21 @@ export class CharacterCustomizationScreen extends Container {
     // Criar Color Pickers (HTML)
     this.createColorPickers();
 
-    // Botão Confirmar
-    const confirmBtn = this.createButton('✅ CONFIRMAR', width / 2, height - 100, () => {
+    // Confirm
+    const confirmBtn = this.createButton('CONFIRM', width / 2, height - 100, () => {
       if (this.onConfirm) {
         this.onConfirm(this.customizationData);
       }
     });
     this.addChild(confirmBtn);
 
-    // Instruções
+    const backBtn = this.createButton('BACK', 140, height - 100, () => {
+      if (this.onCancel) this.onCancel();
+    });
+    this.addChild(backBtn);
+
     const instructions = new Text({
-      text: '💡 Dica: A aparência base é fixa. Equipamentos (chapéus, armas) modificarão seu visual no jogo!',
+      text: 'Tip: Base appearance is fixed. Equipment changes your look in-game.',
       style: {
         fontFamily: 'Arial',
         fontSize: 14,
@@ -175,7 +182,7 @@ export class CharacterCustomizationScreen extends Container {
 
   private async loadGlobalLayers(): Promise<any> {
     try {
-      const res = await fetch('http://localhost:2567/api/admin/visual/global-layers');
+      const res = await fetch('http://localhost:2567/api/visual/global-layers');
       if (!res.ok) return null;
       return await res.json();
     } catch (e) {

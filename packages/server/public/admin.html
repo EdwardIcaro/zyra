@@ -82,6 +82,15 @@
         align-items: center; 
         min-height: 400px; 
     }
+    .ui-editor-sidebar {
+        max-height: 80vh;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+    .ui-preview-sticky {
+        position: sticky;
+        top: 20px;
+    }
     
     /* ✅ NOVOS estilos para labels e controles */
     label {
@@ -128,6 +137,18 @@
         </li>
         <li class="nav-item">
         <button class="nav-link" onclick="switchTab('users')">👥 Usuários</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" onclick="switchTab('buffs')">Buffs/Debuffs</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" onclick="switchTab('classes')">Classes</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" onclick="switchTab('map')">Map Editor</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" onclick="switchTab('ui')">Edição de UI</button>
         </li>
     </ul>
 
@@ -351,6 +372,143 @@
     </div>
 </div>
 
+<!-- Modal: Drops do Monstro -->
+<div class="modal fade" id="monsterDropsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header">
+                <h5 class="modal-title">Drops do Monstro</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="drops_monsterId">
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr><th>Item</th><th>Chance</th><th>Min</th><th>Max</th><th>Ações</th></tr>
+                        </thead>
+                        <tbody id="monsterDropsTableBody">
+                            <tr><td colspan="5" class="text-muted text-center">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6">
+                        <label>Item ID</label>
+                        <input type="text" id="drop_itemId" class="form-control mb-2" placeholder="ex: sword_ink_blade">
+                    </div>
+                    <div class="col-md-2">
+                        <label>Chance</label>
+                        <input type="number" id="drop_chance" class="form-control mb-2" step="0.0001" value="0.1">
+                    </div>
+                    <div class="col-md-2">
+                        <label>Min</label>
+                        <input type="number" id="drop_min" class="form-control mb-2" value="1">
+                    </div>
+                    <div class="col-md-2">
+                        <label>Max</label>
+                        <input type="number" id="drop_max" class="form-control mb-2" value="1">
+                    </div>
+                </div>
+                <button class="btn btn-primary w-100" onclick="saveMonsterDrop()">Salvar Drop</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Editar Classe -->
+<div class="modal fade" id="editClassModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Classe</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="mc_classType">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label>Nome (display)</label>
+                        <input type="text" id="mc_displayName" class="form-control mb-2">
+                    </div>
+                    <div class="col-md-6">
+                        <label>Ativa</label>
+                        <select id="mc_isActive" class="form-select mb-2">
+                            <option value="true">Sim</option>
+                            <option value="false">Não</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <label>Tipo de Ataque</label>
+                        <select id="mc_isRanged" class="form-select mb-2">
+                            <option value="melee">Melee</option>
+                            <option value="ranged">Ranged</option>
+                        </select>
+                    </div>
+                </div>
+                <label>Descrição</label>
+                <textarea id="mc_description" class="form-control mb-3" rows="2"></textarea>
+                <div class="row">
+                    <div class="col-md-4">
+                        <label>Max HP</label>
+                        <input type="number" id="mc_maxHp" class="form-control mb-2">
+                    </div>
+                    <div class="col-md-4">
+                        <label>Max Mana</label>
+                        <input type="number" id="mc_maxMana" class="form-control mb-2">
+                    </div>
+                    <div class="col-md-4">
+                        <label>STR</label>
+                        <input type="number" id="mc_str" class="form-control mb-2">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <label>DEX</label>
+                        <input type="number" id="mc_dex" class="form-control mb-2">
+                    </div>
+                    <div class="col-md-4">
+                        <label>INT</label>
+                        <input type="number" id="mc_int" class="form-control mb-2">
+                    </div>
+                    <div class="col-md-4">
+                        <label>VIT</label>
+                        <input type="number" id="mc_vit" class="form-control mb-2">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <label>LUCK</label>
+                        <input type="number" id="mc_luck" class="form-control mb-2">
+                    </div>
+                    <div class="col-md-4">
+                        <label>Base Damage</label>
+                        <input type="number" id="mc_baseDmg" class="form-control mb-2">
+                    </div>
+                    <div class="col-md-4">
+                        <label>Base Defense</label>
+                        <input type="number" id="mc_baseDef" class="form-control mb-2">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <label>Attack Speed</label>
+                        <input type="number" id="mc_atkSpd" class="form-control mb-2" step="0.1">
+                    </div>
+                    <div class="col-md-6">
+                        <label>Move Speed</label>
+                        <input type="number" id="mc_moveSpd" class="form-control mb-2" step="0.1">
+                    </div>
+                </div>
+                <button class="btn btn-success w-100" onclick="saveClassFromModal()">Salvar Classe</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: Adicionar Item -->
 <div class="modal fade" id="addItemModal" tabindex="-1">
     <div class="modal-dialog">
@@ -404,6 +562,10 @@
                             <option value="B">B</option>
                             <option value="A">A</option>
                             <option value="S">S</option>
+                        </select>
+                        <label>Visual Config (opcional)</label>
+                        <select id="i_visualConfig" class="form-select mb-2">
+                            <option value="">Sem visual</option>
                         </select>
                         <!-- ✅ NOVO: Campo Stackable -->
                         <div class="form-check mb-3">
@@ -500,7 +662,8 @@ document.getElementById('itemForm').onsubmit = async (e) => {
         stackable: stackable,
         is_equipable: isEquipable,              // ✅ MUDOU: sempre boolean
         equip_slot: isEquipable ? equipSlot : null,  // ✅ MUDOU: só enviar se equipável
-        item_type: document.getElementById('i_type').value
+        item_type: document.getElementById('i_type').value,
+        visual_config_id: document.getElementById('i_visualConfig').value || null
     };
     
     // ✅ NOVO: Log para debug
@@ -549,6 +712,8 @@ document.getElementById('itemForm').onsubmit = async (e) => {
                                 document.getElementById('slotSelectContainer').style.display = 'block';
                                 document.getElementById('i_equipSlot').value = i.equip_slot || '';
                             }
+
+                            document.getElementById('i_visualConfig').value = i.visual_config_id || i.visualConfigId || '';
                             
                             toggleEquipableFields();
                         }
@@ -584,6 +749,10 @@ document.getElementById('itemForm').onsubmit = async (e) => {
                         <input type="number" id="m_hp" class="form-control mb-2" value="50">
                         <label>Dano</label>
                         <input type="number" id="m_damage" class="form-control mb-2" value="5">
+                        <label>Defesa</label>
+                        <input type="number" id="m_defense" class="form-control mb-2" value="0">
+                        <label>Attack Speed (s)</label>
+                        <input type="number" id="m_attackSpeed" class="form-control mb-2" value="1.5" step="0.1">
                         <label>Exp Base</label>
                         <input type="number" id="m_exp" class="form-control mb-3" value="10">
                         <button type="submit" class="btn btn-warning w-100">Salvar Monstro</button>
@@ -605,6 +774,405 @@ document.getElementById('itemForm').onsubmit = async (e) => {
 
 
 
+    <!-- ==================== BUFFS/DEBUFFS TAB ==================== -->
+    <div id="buffsSection" style="display: none;">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card p-4 mb-3">
+                    <h5 class="text-warning mb-3">Editor de Buff/Debuff</h5>
+                    <form id="buffForm">
+                        <label>ID</label>
+                        <input type="text" id="b_id" class="form-control mb-2" required>
+                        <label>Nome</label>
+                        <input type="text" id="b_name" class="form-control mb-2" required>
+                        <label>Tipo</label>
+                        <select id="b_kind" class="form-select mb-2">
+                            <option value="buff">Buff</option>
+                            <option value="debuff">Debuff</option>
+                        </select>
+                        <label>Duração (ms)</label>
+                        <input type="number" id="b_duration" class="form-control mb-2" value="900000">
+                        <label>Stackable</label>
+                        <select id="b_stackable" class="form-select mb-2">
+                            <option value="false">Não</option>
+                            <option value="true">Sim</option>
+                        </select>
+                        <label>Max Stacks</label>
+                        <input type="number" id="b_maxStacks" class="form-control mb-2" value="1">
+                        <label>Cor (decimal)</label>
+                        <input type="number" id="b_color" class="form-control mb-2" value="16777215">
+                        <label>Descrição</label>
+                        <textarea id="b_desc" class="form-control mb-2" rows="2"></textarea>
+                        <label>Efeitos (rápido)</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <input type="number" id="b_effect_damage" class="form-control mb-2" placeholder="Damage %">
+                                <input type="number" id="b_effect_defense" class="form-control mb-2" placeholder="Defense %">
+                                <input type="number" id="b_effect_hp" class="form-control mb-2" placeholder="HP %">
+                                <input type="number" id="b_effect_speed" class="form-control mb-2" placeholder="Move Speed %">
+                            </div>
+                            <div class="col-md-6">
+                                <input type="number" id="b_effect_attackSpeed" class="form-control mb-2" placeholder="Attack Speed %">
+                                <input type="number" id="b_effect_critChance" class="form-control mb-2" placeholder="Crit Chance %">
+                                <input type="number" id="b_effect_exp" class="form-control mb-2" placeholder="XP %">
+                                <input type="number" id="b_effect_gold" class="form-control mb-2" placeholder="Gold %">
+                            </div>
+                        </div>
+                        <label>DoT (opcional)</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <input type="number" id="b_effect_dotDamage" class="form-control mb-2" placeholder="Dano por tick">
+                            </div>
+                            <div class="col-md-6">
+                                <input type="number" id="b_effect_dotInterval" class="form-control mb-2" placeholder="Intervalo (ms)">
+                            </div>
+                        </div>
+                        <label>Effects (JSON avançado)</label>
+                        <textarea id="b_effects" class="form-control mb-3" rows="4">{}</textarea>
+                        <button type="submit" class="btn btn-warning w-100">Salvar Buff</button>
+                    </form>
+                </div>
+
+                <div class="card p-4">
+                    <h5 class="text-info mb-3">Conceder Buff</h5>
+                    <form id="grantBuffForm">
+                        <label>Character ID (opcional)</label>
+                        <input type="number" id="gb_characterId" class="form-control mb-2">
+                        <label>Character Name (opcional)</label>
+                        <input type="text" id="gb_characterName" class="form-control mb-2" list="characterNameOptions" onkeyup="handleCharacterSearch(event)" onchange="applySelectedCharacterName()">
+                        <datalist id="characterNameOptions"></datalist>
+                        <label>Buff ID</label>
+                        <input type="text" id="gb_buffId" class="form-control mb-2" required>
+                        <label>Stacks</label>
+                        <input type="number" id="gb_stacks" class="form-control mb-2" value="1">
+                        <label>Duração (ms)</label>
+                        <input type="number" id="gb_duration" class="form-control mb-3" value="900000">
+                        <button type="submit" class="btn btn-primary w-100">Conceder</button>
+                    </form>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Duração</th><th>Ações</th></tr>
+                        </thead>
+                        <tbody id="buffsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== CLASSES TAB ==================== -->
+    <div id="classesSection" style="display: none;">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card p-4">
+                    <h5 class="text-warning mb-3">Base Stats da Classe (novos chars)</h5>
+                    <form id="classStatsForm">
+                        <label>Class Type</label>
+                        <input type="text" id="c_classType" class="form-control mb-2" list="classTypeOptions" required>
+                        <datalist id="classTypeOptions"></datalist>
+                        <label>Nome (display)</label>
+                        <input type="text" id="c_displayName" class="form-control mb-2" placeholder="Ex: Paladino">
+                        <label>Descrição</label>
+                        <textarea id="c_description" class="form-control mb-2" rows="2"></textarea>
+                        <label>Ativa</label>
+                        <select id="c_isActive" class="form-select mb-2">
+                            <option value="true">Sim</option>
+                            <option value="false">Não</option>
+                        </select>
+                        <label>Tipo de Ataque</label>
+                        <select id="c_isRanged" class="form-select mb-2">
+                            <option value="melee">Melee</option>
+                            <option value="ranged">Ranged</option>
+                        </select>
+                        <label>Max HP</label>
+                        <input type="number" id="c_maxHp" class="form-control mb-2" value="100">
+                        <label>Max Mana</label>
+                        <input type="number" id="c_maxMana" class="form-control mb-2" value="50">
+                        <label>STR</label>
+                        <input type="number" id="c_str" class="form-control mb-2" value="10">
+                        <label>DEX</label>
+                        <input type="number" id="c_dex" class="form-control mb-2" value="10">
+                        <label>INT</label>
+                        <input type="number" id="c_int" class="form-control mb-2" value="10">
+                        <label>VIT</label>
+                        <input type="number" id="c_vit" class="form-control mb-2" value="10">
+                        <label>LUCK</label>
+                        <input type="number" id="c_luck" class="form-control mb-2" value="5">
+                        <label>Base Damage</label>
+                        <input type="number" id="c_baseDmg" class="form-control mb-2" value="10">
+                        <label>Base Defense</label>
+                        <input type="number" id="c_baseDef" class="form-control mb-2" value="0">
+                        <label>Attack Speed</label>
+                        <input type="number" id="c_atkSpd" class="form-control mb-2" value="1.0" step="0.1">
+                        <label>Move Speed</label>
+                        <input type="number" id="c_moveSpd" class="form-control mb-3" value="4.0" step="0.1">
+                        <button type="submit" class="btn btn-warning w-100">Salvar Classe</button>
+                    </form>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr><th>Classe</th><th>HP</th><th>DMG</th><th>DEF</th><th>Move</th><th>Ativa</th><th>Ações</th></tr>
+                        </thead>
+                        <tbody id="classesTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MAP EDITOR TAB ==================== -->
+    <div id="mapSection" style="display: none;">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card p-4 mb-3">
+                    <h5 class="text-warning mb-3">Mapa e Zona</h5>
+                    <label>Zona</label>
+                    <select id="map_zoneSelect" class="form-select mb-2" onchange="loadMapZone()"></select>
+                    <label>Modo</label>
+                    <select id="map_mode" class="form-select mb-2" onchange="handleMapModeChange()">
+                        <option value="tiles">Tiles</option>
+                        <option value="spawns">Spawns</option>
+                        <option value="playerSpawn">Spawn Inicial</option>
+                    </select>
+                    <label>Layer</label>
+                    <select id="map_layer" class="form-select mb-2" onchange="currentLayer=this.value">
+                        <option value="ground">ground</option>
+                        <option value="decoration">decoration</option>
+                        <option value="collision">collision</option>
+                    </select>
+                    <label>Brush</label>
+                    <select id="map_brush" class="form-select mb-2">
+                        <option value="paint">paint</option>
+                        <option value="erase">erase</option>
+                    </select>
+                    <label>Visibilidade das layers</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layer_visible_ground" checked onchange="setLayerVisibility('ground', this.checked)">
+                        <label class="form-check-label" for="layer_visible_ground">ground</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="layer_visible_decoration" checked onchange="setLayerVisibility('decoration', this.checked)">
+                        <label class="form-check-label" for="layer_visible_decoration">decoration</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="layer_visible_collision" checked onchange="setLayerVisibility('collision', this.checked)">
+                        <label class="form-check-label" for="layer_visible_collision">collision</label>
+                    </div>
+                    <button class="btn btn-success w-100" onclick="saveMap()">Salvar Mapa</button>
+                </div>
+
+                <div class="card p-4 mb-3" id="map_tilesetCard">
+                    <h5 class="text-info mb-3">Tileset</h5>
+                    <div id="tilesetList" style="max-height: 260px; overflow-y: auto;"></div>
+                </div>
+
+                <div class="card p-4 mb-3" id="map_monsterSpawnCard">
+                    <h5 class="text-info mb-3">Spawn de Monstros (pintar no mapa)</h5>
+                    <input type="hidden" id="spawn_id">
+                    <label>Template</label>
+                    <select id="spawn_monsterId" class="form-select mb-2"></select>
+                    <label>Level (opcional)</label>
+                    <input type="number" id="spawn_level" class="form-control mb-2" placeholder="Usar default">
+                    <label>Respawn (segundos)</label>
+                    <input type="number" id="spawn_respawn" class="form-control mb-2" value="30">
+                    <label>X</label>
+                    <input type="number" id="spawn_x" class="form-control mb-2">
+                    <label>Y</label>
+                    <input type="number" id="spawn_y" class="form-control mb-3">
+                    <small class="text-muted d-block">Use o modo Spawns + brush paint/erase e clique/arraste no mapa.</small>
+                </div>
+
+                <div class="card p-4" id="map_playerSpawnCard">
+                    <h5 class="text-info mb-3">Spawn Inicial do Player (pintar no mapa)</h5>
+                    <label>X</label>
+                    <input type="number" id="player_spawn_x" class="form-control mb-2" disabled>
+                    <label>Y</label>
+                    <input type="number" id="player_spawn_y" class="form-control mb-2" disabled>
+                    <small class="text-muted d-block">Use o modo Spawn Inicial + brush paint/erase e clique no mapa. Aplica apenas para novos personagens.</small>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card p-3 mb-3">
+                    <h5 class="text-warning">Preview do Mapa</h5>
+                    <div id="mapPreview" style="position: relative; width: 100%; height: 480px; background: #222; overflow: hidden;"></div>
+                    <small class="text-muted">Tiles: clique/arraste para pintar. Spawns: clique/arraste para colocar/remover. Spawn Inicial: clique para definir.</small>
+                </div>
+
+                <div class="card p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr><th>ID</th><th>Monstro</th><th>X</th><th>Y</th><th>Level</th><th>Respawn</th><th>Ações</th></tr>
+                        </thead>
+                        <tbody id="spawnsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== SPAWN ZONES TAB ==================== -->
+    <div id="spawnZonesSection" style="display: none;">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card p-4 mb-3">
+                    <h5 class="text-warning mb-3">Spawn Inicial por Zona</h5>
+                    <label>Zona</label>
+                    <select id="spawn_zoneSelect" class="form-select mb-2" onchange="handleSpawnZoneChange()"></select>
+                    <label>X</label>
+                    <input type="number" id="spawn_zone_x" class="form-control mb-2">
+                    <label>Y</label>
+                    <input type="number" id="spawn_zone_y" class="form-control mb-3">
+                    <button class="btn btn-success w-100" onclick="savePlayerSpawn()">Salvar Spawn Inicial</button>
+                    <small class="text-muted d-block mt-2">Aplica apenas para novos personagens.</small>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card p-4">
+                    <p class="text-muted mb-0">Defina um ponto fixo de spawn inicial por zona (zone_id único).</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== UI EDITOR TAB ==================== -->
+    <div id="uiSection" style="display: none;">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="ui-editor-sidebar">
+                <div class="card p-4 mb-3">
+                    <h5 class="text-warning mb-3">EdiÇõÇœo de UI</h5>
+                    <label>UI</label>
+                    <select id="ui_editor_select" class="form-select mb-2" onchange="handleUiSelectChange()">
+                        <option value="health_mana_bar">HealthManaBar</option>
+                        <option value="skill_bar">SkillBarUI</option>
+                    </select>
+
+                    <label>Anchor</label>
+                    <select id="ui_anchor" class="form-select mb-2" onchange="handleUiFormChange()">
+                        <option value="top-left">top-left</option>
+                        <option value="top-center">top-center</option>
+                        <option value="top-right">top-right</option>
+                        <option value="center-left">center-left</option>
+                        <option value="center">center</option>
+                        <option value="center-right">center-right</option>
+                        <option value="bottom-left">bottom-left</option>
+                        <option value="bottom-center">bottom-center</option>
+                        <option value="bottom-right">bottom-right</option>
+                    </select>
+
+                    <label>Offset X</label>
+                    <input type="number" id="ui_offset_x" class="form-control mb-2" value="0" oninput="handleUiFormChange()">
+                    <label>Offset Y</label>
+                    <input type="number" id="ui_offset_y" class="form-control mb-2" value="0" oninput="handleUiFormChange()">
+
+                    <label>Scale</label>
+                    <input type="number" id="ui_scale" class="form-control mb-2" value="1" step="0.1" min="0.5" max="2" oninput="handleUiFormChange()">
+                </div>
+
+                <div class="card p-4 mb-3" id="ui_element_controls">
+                    <h5 class="text-info mb-3">Elemento</h5>
+                    <label>Item</label>
+                    <select id="ui_element_select" class="form-select mb-2" onchange="handleUiElementChange()"></select>
+
+                    <label>X</label>
+                    <input type="number" id="ui_element_x" class="form-control mb-2" oninput="handleUiElementInput()">
+                    <label>Y</label>
+                    <input type="number" id="ui_element_y" class="form-control mb-2" oninput="handleUiElementInput()">
+                    <label>Scale</label>
+                    <input type="number" id="ui_element_scale" class="form-control mb-2" step="0.1" min="0.2" max="3" oninput="handleUiElementInput()">
+                    <label>Width</label>
+                    <input type="number" id="ui_element_width" class="form-control mb-2" min="0" oninput="handleUiElementInput()">
+                    <label>Height</label>
+                    <input type="number" id="ui_element_height" class="form-control mb-2" min="0" oninput="handleUiElementInput()">
+                    <label>Alpha</label>
+                    <input type="number" id="ui_element_alpha" class="form-control mb-2" step="0.1" min="0" max="1" oninput="handleUiElementInput()">
+                    <label>Tint</label>
+                    <input type="color" id="ui_element_tint" class="form-control form-control-color mb-2" oninput="handleUiElementInput()">
+
+                    <div id="ui_element_text_controls" style="display: none;">
+                        <label>Font</label>
+                        <select id="ui_element_font" class="form-select mb-2" onchange="handleUiElementInput()"></select>
+                        <label>Font Size</label>
+                        <input type="number" id="ui_element_font_size" class="form-control mb-2" min="8" max="48" oninput="handleUiElementInput()">
+                    </div>
+                </div>
+
+                <div class="card p-4 mb-3" id="ui_health_controls">
+                    <h5 class="text-info mb-3">HealthManaBar</h5>
+                    <label>Panel</label>
+                    <select id="ui_health_panel" class="form-select mb-2" onchange="handleUiFormChange()"></select>
+                    <label>HP Fill</label>
+                    <select id="ui_health_hp_fill" class="form-select mb-2" onchange="handleUiFormChange()"></select>
+                    <label>HP Overlay</label>
+                    <select id="ui_health_hp_overlay" class="form-select mb-2" onchange="handleUiFormChange()"></select>
+                    <label>Mana Fill</label>
+                    <select id="ui_health_mana_fill" class="form-select mb-2" onchange="handleUiFormChange()"></select>
+                    <label>Mana Overlay</label>
+                    <select id="ui_health_mana_overlay" class="form-select mb-2" onchange="handleUiFormChange()"></select>
+
+                    <label>Font (Name/Level)</label>
+                    <select id="ui_health_font_name" class="form-select mb-2" onchange="handleUiFormChange()"></select>
+                    <label>Font (Values)</label>
+                    <select id="ui_health_font_values" class="form-select mb-2" onchange="handleUiFormChange()"></select>
+
+                    <label>Name Text</label>
+                    <input type="text" id="ui_health_text_name" class="form-control mb-2" oninput="handleUiFormChange()">
+                    <label>Level Label Text</label>
+                    <input type="text" id="ui_health_text_level_label" class="form-control mb-2" oninput="handleUiFormChange()">
+                    <label>Level Number Text</label>
+                    <input type="text" id="ui_health_text_level_number" class="form-control mb-2" oninput="handleUiFormChange()">
+                    <label>HP Text</label>
+                    <input type="text" id="ui_health_text_hp" class="form-control mb-2" oninput="handleUiFormChange()">
+                    <label>Mana Text</label>
+                    <input type="text" id="ui_health_text_mana" class="form-control mb-2" oninput="handleUiFormChange()">
+                </div>
+
+                <div class="card p-4 mb-3" id="ui_skill_controls" style="display: none;">
+                    <h5 class="text-info mb-3">SkillBarUI</h5>
+                    <label>Slot Size</label>
+                    <input type="number" id="ui_skill_slot_size" class="form-control mb-2" min="32" max="96" oninput="handleUiFormChange()">
+                    <label>Bar Width</label>
+                    <input type="number" id="ui_skill_bar_width" class="form-control mb-2" min="32" max="160" oninput="handleUiFormChange()">
+                    <label>Bar Height</label>
+                    <input type="number" id="ui_skill_bar_height" class="form-control mb-2" min="4" max="16" oninput="handleUiFormChange()">
+                    <label>Key Text</label>
+                    <input type="text" id="ui_skill_key_text" class="form-control mb-2" oninput="handleUiFormChange()">
+                    <label>Label Text</label>
+                    <input type="text" id="ui_skill_label_text" class="form-control mb-2" oninput="handleUiFormChange()">
+                    <label>Slot Color</label>
+                    <input type="color" id="ui_skill_slot_color" class="form-control form-control-color mb-2" oninput="handleUiFormChange()">
+                    <label>Cooldown Color</label>
+                    <input type="color" id="ui_skill_cooldown_color" class="form-control form-control-color mb-2" oninput="handleUiFormChange()">
+                    <label>Charge Color</label>
+                    <input type="color" id="ui_skill_charge_color" class="form-control form-control-color mb-2" oninput="handleUiFormChange()">
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success w-100" onclick="saveUiConfig()">Salvar</button>
+                    <button class="btn btn-outline-danger w-100" onclick="resetUiConfig()">Reset to Default</button>
+                </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="ui-preview-sticky">
+                    <div class="card p-0">
+                        <div class="preview-container">
+                            <div id="ui-preview"></div>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-2">Use placeholders: {player.name}, {player.level}, {player.currentHp}, {player.maxHp}, {player.currentMana}, {player.maxMana}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
  <!-- ==================== VISUAL SYSTEM TAB ==================== -->
 <div id="visualSection" style="display: none;">
     <div class="row">
@@ -616,16 +1184,43 @@ document.getElementById('itemForm').onsubmit = async (e) => {
                 <label>Configurar para:</label>
                 <select id="visualModeSelect" class="form-select mb-2" onchange="switchVisualMode()">
                     <option value="global">Config Global (Todos os Players)</option>
-                    <option value="item">Item Específico</option>
+                    <option value="config">Visual Config (Criar/Editar)</option>
+                    <option value="item">Item (Atribuir Visual)</option>
                 </select>
                 
+                <!-- Container de Visual Config -->
+                <div id="configSelectorContainer" style="display: none;">
+                    <label>Visual Config:</label>
+                    <select id="visualConfigSelect" class="form-select mb-2" onchange="loadSelectedVisualConfig()">
+                        <option value="">Carregando...</option>
+                    </select>
+                    <label>Tipo:</label>
+                    <select id="visualConfigType" class="form-select mb-2">
+                        <option value="EYE">EYE</option>
+                        <option value="HAT">HAT</option>
+                        <option value="MASK">MASK</option>
+                        <option value="WEAPON">WEAPON</option>
+                        <option value="ARMOR">ARMOR</option>
+                        <option value="PET">PET</option>
+                    </select>
+                    <label>Target ID:</label>
+                    <input type="number" id="visualConfigTargetId" class="form-control mb-2" value="1">
+                    <button class="btn btn-secondary w-100 mb-2" onclick="startNewVisualConfig()">Novo Visual Config</button>
+                    <button class="btn btn-danger w-100" onclick="deleteVisualConfig()">Excluir Visual Config</button>
+                    <button class="btn btn-warning w-100 mt-2" onclick="migrateLegacyItemVisuals()">Migrar visuais antigos de itens</button>
+                </div>
+
                 <!-- Container que aparece quando item for selecionado -->
                 <div id="itemSelectorContainer" style="display: none;">
                     <label>Selecionar Item:</label>
                     <select id="visualItemSelect" class="form-select mb-2" onchange="loadItemVisualConfig()">
                         <option value="">Carregando...</option>
                     </select>
-                    <small class="text-muted">Camadas serão salvas para este item específico</small>
+                    <label>Visual Config:</label>
+                    <select id="visualItemConfigSelect" class="form-select mb-2" onchange="previewItemVisualConfig()">
+                        <option value="">Carregando...</option>
+                    </select>
+                    <small class="text-muted">Atribui um Visual Config ao template do item</small>
                 </div>
             </div>
 
@@ -635,9 +1230,13 @@ document.getElementById('itemForm').onsubmit = async (e) => {
                 <label>Tipo</label>
                 <select id="layerTypeSelect" class="form-select mb-2" onchange="loadAssetsForLayer()">
                     <option value="">Selecione...</option>
-                    <option value="bodies">Corpos</option>
-                    <option value="faces">Olhos</option>
+                    <option value="bodies" disabled>Corpos (fixo)</option>
+                    <option value="eyes">Olhos</option>
                     <option value="hats">Chapéus</option>
+                    <option value="masks">Máscaras</option>
+                    <option value="weapons">Armas</option>
+                    <option value="armor">Armaduras</option>
+                    <option value="pets">Pets</option>
                 </select>
                 <label>Asset</label>
                 <select id="assetSelect" class="form-select mb-3" disabled></select>
@@ -668,6 +1267,13 @@ document.getElementById('itemForm').onsubmit = async (e) => {
                     <div id="pixi-preview"></div>
                 </div>
             </div>
+
+            <div class="text-center mt-2">
+                <div class="btn-group">
+                    <button class="btn btn-outline-light" onclick="setPreviewFacing(1)">Facing Right</button>
+                    <button class="btn btn-outline-light" onclick="setPreviewFacing(-1)">Facing Left</button>
+                </div>
+            </div>
             
             <!-- ✅ Botão Salvar -->
             <div class="text-center mt-3">
@@ -687,6 +1293,17 @@ let previewContainer = null;
 let layers = [];
 let selectedLayerIndex = -1;
 let layerSprites = new Map();
+let previewFacing = 1;
+
+function sanitizeLayersForEdit() {
+    if (!Array.isArray(layers)) layers = [];
+    const before = layers.length;
+    layers = layers.filter(l => l && l.type !== 'bodies');
+    if (before !== layers.length) {
+        console.warn('[Visual] Removed bodies layers from editor (base body is fixed).');
+    }
+    if (selectedLayerIndex >= layers.length) selectedLayerIndex = -1;
+}
 
 // ============================================
 // TAB SWITCHING
@@ -703,7 +1320,11 @@ function switchTab(tab) {
         loadItems(); // ✅ Sempre recarregar ao entrar na aba
     }
     if (tab === 'monsters') loadMonsters();
+    if (tab === 'buffs') loadBuffs();
+    if (tab === 'classes') loadClassStats();
+    if (tab === 'map') loadMapEditor();
     if (tab === 'visual') initPixi();
+    if (tab === 'ui') initUiEditor();
     if (tab === 'users') loadUsersTab();
 }
 
@@ -719,6 +1340,8 @@ async function loadItems() {
         
         // ✅ Cache global
         window.cachedItems = data;
+
+        await loadVisualConfigsForItems();
         
         // ✅ NOVO: Log para debug
         console.log(`📦 Carregados ${data.length} itens do servidor`);
@@ -741,6 +1364,20 @@ async function loadItems() {
     } catch (err) {
         console.error('[Admin] Erro ao carregar itens:', err);
         alert('❌ Erro ao carregar itens do servidor');
+    }
+}
+
+async function loadVisualConfigsForItems() {
+    try {
+        const res = await fetch(`${API_URL}/api/admin/visual/configs`);
+        cachedVisualConfigs = await res.json();
+
+        const select = document.getElementById('i_visualConfig');
+        if (!select) return;
+        select.innerHTML = '<option value="">Sem visual</option>' +
+            cachedVisualConfigs.map(c => `<option value="${c.id}">${c.type}_${c.target_id} (#${c.id})</option>`).join('');
+    } catch (e) {
+        console.error('[Admin] Erro ao carregar visual configs:', e);
     }
 }
 
@@ -801,7 +1438,11 @@ async function loadMonsters() {
     document.getElementById('monstersTableBody').innerHTML = data.map(m => `
         <tr onclick="editMonster('${m.id}')">
             <td>${m.id}</td><td>${m.name}</td><td>${m.level}</td><td>${m.stats?.maxHp || 50}</td>
-            <td><button class="btn btn-sm btn-warning">Editar</button></td>
+            <td>
+                <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); editMonster('${m.id}')">Editar</button>
+                <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); openMonsterDrops('${m.id}')">Drops</button>
+                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteMonster('${m.id}')">Del</button>
+            </td>
         </tr>
     `).join('');
     window.cachedMonsters = data;
@@ -816,6 +1457,8 @@ document.getElementById('monsterForm').onsubmit = async (e) => {
             id: document.getElementById('m_id').value,
             name: document.getElementById('m_name').value,
             level: parseInt(document.getElementById('m_level').value),
+            defense: parseInt(document.getElementById('m_defense').value),
+            attackSpeed: parseFloat(document.getElementById('m_attackSpeed').value),
             stats: { 
                 maxHp: parseInt(document.getElementById('m_hp').value),
                 damage: parseInt(document.getElementById('m_damage').value)
@@ -835,7 +1478,815 @@ function editMonster(id) {
     document.getElementById('m_level').value = m.level;
     document.getElementById('m_hp').value = m.stats?.maxHp || 50;
     document.getElementById('m_damage').value = m.stats?.damage || 5;
+    document.getElementById('m_defense').value = m.defense ?? 0;
+    document.getElementById('m_attackSpeed').value = m.attack_speed ?? 1.5;
     document.getElementById('m_exp').value = m.rewards?.baseExp || 10;
+}
+
+async function deleteMonster(id) {
+    if (!confirm('Remover este monstro?')) return;
+    await fetch(`${API_URL}/api/admin/monsters/${id}`, { method: 'DELETE' });
+    loadMonsters();
+}
+
+async function openMonsterDrops(monsterId) {
+    const m = window.cachedMonsters?.find(x => x.id === monsterId);
+    const title = document.querySelector('#monsterDropsModal .modal-title');
+    if (title) title.textContent = `Drops do Monstro: ${m?.name || monsterId}`;
+    document.getElementById('drops_monsterId').value = monsterId;
+    await loadMonsterDrops(monsterId);
+    const modal = new bootstrap.Modal(document.getElementById('monsterDropsModal'));
+    modal.show();
+}
+
+async function loadMonsterDrops(monsterId) {
+    const res = await fetch(`${API_URL}/api/admin/monsters/${monsterId}/drops`);
+    const data = await res.json();
+    document.getElementById('monsterDropsTableBody').innerHTML = data.map(d => `
+        <tr>
+            <td>${d.item_id} ${d.item_name ? `(${d.item_name})` : ''}</td>
+            <td>${d.chance}</td>
+            <td>${d.min_quantity ?? 1}</td>
+            <td>${d.max_quantity ?? 1}</td>
+            <td><button class="btn btn-sm btn-danger" onclick="deleteMonsterDrop(${d.id})">Del</button></td>
+        </tr>
+    `).join('') || `<tr><td colspan="5" class="text-muted text-center">Nenhum drop</td></tr>`;
+}
+
+async function saveMonsterDrop() {
+    const monsterId = document.getElementById('drops_monsterId').value;
+    const itemId = document.getElementById('drop_itemId').value;
+    const chance = parseFloat(document.getElementById('drop_chance').value);
+    const minQty = parseInt(document.getElementById('drop_min').value);
+    const maxQty = parseInt(document.getElementById('drop_max').value);
+
+    if (!monsterId || !itemId) {
+        alert('Preencha o Item ID.');
+        return;
+    }
+
+    await fetch(`${API_URL}/api/admin/drops/save`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            monster_id: monsterId,
+            item_id: itemId,
+            chance: chance,
+            min_quantity: minQty,
+            max_quantity: maxQty
+        })
+    });
+
+    await loadMonsterDrops(monsterId);
+}
+
+async function deleteMonsterDrop(id) {
+    if (!confirm('Remover este drop?')) return;
+    await fetch(`${API_URL}/api/admin/drops/${id}`, { method: 'DELETE' });
+    const monsterId = document.getElementById('drops_monsterId').value;
+    await loadMonsterDrops(monsterId);
+}
+
+// ============================================
+// BUFFS / DEBUFFS LOGIC
+// ============================================
+async function loadBuffs() {
+    const res = await fetch(`${API_URL}/api/admin/buffs`);
+    const data = await res.json();
+    window.cachedBuffs = data;
+    document.getElementById('buffsTableBody').innerHTML = data.map(b => `
+        <tr onclick="editBuff('${b.id}')">
+            <td>${b.id}</td><td>${b.name}</td><td>${b.kind}</td><td>${b.duration_ms ?? 0}</td>
+            <td>
+                <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); editBuff('${b.id}')">Editar</button>
+                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteBuff('${b.id}')">Del</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+document.getElementById('buffForm').onsubmit = async (e) => {
+    e.preventDefault();
+    let effects = buildEffectsFromFields();
+    if (!effects) {
+        try {
+            effects = JSON.parse(document.getElementById('b_effects').value || '{}');
+        } catch (_e) {
+            alert('Effects JSON inválido');
+            return;
+        }
+    }
+
+    await fetch(`${API_URL}/api/admin/buffs/save`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            id: document.getElementById('b_id').value,
+            name: document.getElementById('b_name').value,
+            kind: document.getElementById('b_kind').value,
+            description: document.getElementById('b_desc').value,
+            durationMs: parseInt(document.getElementById('b_duration').value),
+            stackable: document.getElementById('b_stackable').value === 'true',
+            maxStacks: parseInt(document.getElementById('b_maxStacks').value),
+            visualColor: parseInt(document.getElementById('b_color').value),
+            effects
+        })
+    });
+    alert('Buff salvo!');
+    loadBuffs();
+};
+
+function editBuff(id) {
+    const b = window.cachedBuffs?.find(x => x.id === id);
+    if (!b) return;
+    document.getElementById('b_id').value = b.id;
+    document.getElementById('b_name').value = b.name;
+    document.getElementById('b_kind').value = b.kind || 'buff';
+    document.getElementById('b_desc').value = b.description || '';
+    document.getElementById('b_duration').value = b.duration_ms ?? 0;
+    document.getElementById('b_stackable').value = (b.stackable === true) ? 'true' : 'false';
+    document.getElementById('b_maxStacks').value = b.max_stacks ?? 1;
+    document.getElementById('b_color').value = b.visual_color ?? 16777215;
+    document.getElementById('b_effects').value = JSON.stringify(b.effects || {}, null, 2);
+    fillEffectFields(b.effects || {});
+}
+
+async function deleteBuff(id) {
+    if (!confirm('Remover este buff/debuff?')) return;
+    await fetch(`${API_URL}/api/admin/buffs/${id}`, { method: 'DELETE' });
+    loadBuffs();
+}
+
+document.getElementById('grantBuffForm').onsubmit = async (e) => {
+    e.preventDefault();
+    await fetch(`${API_URL}/api/admin/buffs/grant`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            characterId: document.getElementById('gb_characterId').value ? parseInt(document.getElementById('gb_characterId').value) : null,
+            characterName: document.getElementById('gb_characterName').value || null,
+            buffId: document.getElementById('gb_buffId').value,
+            stacks: parseInt(document.getElementById('gb_stacks').value),
+            durationMs: parseInt(document.getElementById('gb_duration').value)
+        })
+    });
+    alert('Buff concedido!');
+};
+
+let characterSearchTimer = null;
+function handleCharacterSearch(event) {
+    const query = event.target.value.trim();
+    if (characterSearchTimer) clearTimeout(characterSearchTimer);
+    characterSearchTimer = setTimeout(() => {
+        loadCharacterOptions(query);
+    }, 200);
+}
+
+async function loadCharacterOptions(query) {
+    const res = await fetch(`${API_URL}/api/admin/characters?q=${encodeURIComponent(query || '')}`);
+    const data = await res.json();
+    const list = document.getElementById('characterNameOptions');
+    window.characterNameMap = new Map(data.map(c => [c.char_name, c.id]));
+    list.innerHTML = data.map(c => `<option value="${c.char_name}"></option>`).join('');
+}
+
+function applySelectedCharacterName() {
+    const name = document.getElementById('gb_characterName').value.trim();
+    const id = window.characterNameMap?.get(name);
+    if (id) document.getElementById('gb_characterId').value = id;
+}
+
+function buildEffectsFromFields() {
+    const effects = {};
+    const maybeSet = (key, value) => {
+        if (value === '' || value === null || value === undefined) return;
+        const num = Number(value);
+        if (!Number.isNaN(num) && num !== 0) effects[key] = num;
+    };
+
+    maybeSet('damageBonus', document.getElementById('b_effect_damage').value);
+    maybeSet('defenseBonus', document.getElementById('b_effect_defense').value);
+    maybeSet('hpBonus', document.getElementById('b_effect_hp').value);
+    maybeSet('speedBonus', document.getElementById('b_effect_speed').value);
+    maybeSet('attackSpeedBonus', document.getElementById('b_effect_attackSpeed').value);
+    maybeSet('critChanceBonus', document.getElementById('b_effect_critChance').value);
+    maybeSet('expBonus', document.getElementById('b_effect_exp').value);
+    maybeSet('goldBonus', document.getElementById('b_effect_gold').value);
+
+    const dotDamage = document.getElementById('b_effect_dotDamage').value;
+    const dotInterval = document.getElementById('b_effect_dotInterval').value;
+    if (dotDamage && dotInterval) {
+        effects.effectType = 'dot';
+        effects.damagePerTick = Number(dotDamage);
+        effects.tickInterval = Number(dotInterval);
+    }
+
+    return Object.keys(effects).length ? effects : null;
+}
+
+function fillEffectFields(effects) {
+    document.getElementById('b_effect_damage').value = effects.damageBonus ?? '';
+    document.getElementById('b_effect_defense').value = effects.defenseBonus ?? '';
+    document.getElementById('b_effect_hp').value = effects.hpBonus ?? '';
+    document.getElementById('b_effect_speed').value = effects.speedBonus ?? '';
+    document.getElementById('b_effect_attackSpeed').value = effects.attackSpeedBonus ?? '';
+    document.getElementById('b_effect_critChance').value = effects.critChanceBonus ?? '';
+    document.getElementById('b_effect_exp').value = effects.expBonus ?? '';
+    document.getElementById('b_effect_gold').value = effects.goldBonus ?? '';
+    document.getElementById('b_effect_dotDamage').value = effects.damagePerTick ?? '';
+    document.getElementById('b_effect_dotInterval').value = effects.tickInterval ?? '';
+}
+
+
+// ============================================
+// CLASS BASE STATS LOGIC
+// ============================================
+async function loadClassStats() {
+    const res = await fetch(`${API_URL}/api/admin/class-stats`);
+    const data = await res.json();
+    window.cachedClassStats = data;
+    await loadActiveClassOptions();
+    document.getElementById('classesTableBody').innerHTML = data.map(c => `
+        <tr>
+            <td>${c.class_type}</td><td>${c.max_hp ?? 100}</td><td>${c.base_damage ?? 10}</td><td>${c.base_defense ?? 0}</td><td>${c.move_speed ?? 4.0}</td>
+            <td>${c.is_active === false ? 'Não' : 'Sim'}</td>
+            <td>
+                <button class="btn btn-sm btn-warning" onclick="openClassModal('${c.class_type}')">Editar</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteClass('${c.class_type}')">Del</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+document.getElementById('classStatsForm').onsubmit = async (e) => {
+    e.preventDefault();
+    await fetch(`${API_URL}/api/admin/class-stats/save`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            classType: document.getElementById('c_classType').value,
+            displayName: document.getElementById('c_displayName').value,
+            description: document.getElementById('c_description').value,
+            maxHp: parseInt(document.getElementById('c_maxHp').value),
+            maxMana: parseInt(document.getElementById('c_maxMana').value),
+            strength: parseInt(document.getElementById('c_str').value),
+            dexterity: parseInt(document.getElementById('c_dex').value),
+            intelligence: parseInt(document.getElementById('c_int').value),
+            vitality: parseInt(document.getElementById('c_vit').value),
+            luck: parseInt(document.getElementById('c_luck').value),
+            baseDamage: parseInt(document.getElementById('c_baseDmg').value),
+            baseDefense: parseInt(document.getElementById('c_baseDef').value),
+            attackSpeed: parseFloat(document.getElementById('c_atkSpd').value),
+            moveSpeed: parseFloat(document.getElementById('c_moveSpd').value),
+            isActive: document.getElementById('c_isActive').value === 'true',
+            isRanged: document.getElementById('c_isRanged').value === 'ranged'
+        })
+    });
+    alert('Classe salva!');
+    loadClassStats();
+};
+
+async function loadActiveClassOptions() {
+    const datalist = document.getElementById('classTypeOptions');
+    if (!datalist) return;
+    try {
+        const res = await fetch(`${API_URL}/api/classes`);
+        if (!res.ok) throw new Error('fail');
+        const data = await res.json();
+        const options = (Array.isArray(data) ? data : []).map(c => c.class_type);
+        if (options.length === 0) throw new Error('empty');
+        datalist.innerHTML = options.map(v => `<option value="${v}"></option>`).join('');
+        return;
+    } catch (_e) {
+        datalist.innerHTML = ['warrior', 'mage', 'archer'].map(v => `<option value="${v}"></option>`).join('');
+    }
+}
+
+function openClassModal(classType) {
+    const c = window.cachedClassStats?.find(x => x.class_type === classType);
+    if (!c) return;
+    document.getElementById('mc_classType').value = c.class_type;
+    document.getElementById('mc_displayName').value = c.display_name ?? '';
+    document.getElementById('mc_description').value = c.description ?? '';
+    document.getElementById('mc_isActive').value = c.is_active === false ? 'false' : 'true';
+    document.getElementById('mc_isRanged').value = c.is_ranged === true ? 'ranged' : 'melee';
+    document.getElementById('mc_maxHp').value = c.max_hp ?? 100;
+    document.getElementById('mc_maxMana').value = c.max_mana ?? 50;
+    document.getElementById('mc_str').value = c.strength ?? 10;
+    document.getElementById('mc_dex').value = c.dexterity ?? 10;
+    document.getElementById('mc_int').value = c.intelligence ?? 10;
+    document.getElementById('mc_vit').value = c.vitality ?? 10;
+    document.getElementById('mc_luck').value = c.luck ?? 5;
+    document.getElementById('mc_baseDmg').value = c.base_damage ?? 10;
+    document.getElementById('mc_baseDef').value = c.base_defense ?? 0;
+    document.getElementById('mc_atkSpd').value = c.attack_speed ?? 1.0;
+    document.getElementById('mc_moveSpd').value = c.move_speed ?? 4.0;
+    const modal = new bootstrap.Modal(document.getElementById('editClassModal'));
+    modal.show();
+}
+
+async function saveClassFromModal() {
+    const classType = document.getElementById('mc_classType').value;
+    await fetch(`${API_URL}/api/admin/class-stats/save`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            classType,
+            displayName: document.getElementById('mc_displayName').value,
+            description: document.getElementById('mc_description').value,
+            maxHp: parseInt(document.getElementById('mc_maxHp').value),
+            maxMana: parseInt(document.getElementById('mc_maxMana').value),
+            strength: parseInt(document.getElementById('mc_str').value),
+            dexterity: parseInt(document.getElementById('mc_dex').value),
+            intelligence: parseInt(document.getElementById('mc_int').value),
+            vitality: parseInt(document.getElementById('mc_vit').value),
+            luck: parseInt(document.getElementById('mc_luck').value),
+            baseDamage: parseInt(document.getElementById('mc_baseDmg').value),
+            baseDefense: parseInt(document.getElementById('mc_baseDef').value),
+            attackSpeed: parseFloat(document.getElementById('mc_atkSpd').value),
+            moveSpeed: parseFloat(document.getElementById('mc_moveSpd').value),
+            isActive: document.getElementById('mc_isActive').value === 'true',
+            isRanged: document.getElementById('mc_isRanged').value === 'ranged'
+        })
+    });
+    bootstrap.Modal.getInstance(document.getElementById('editClassModal')).hide();
+    loadClassStats();
+}
+
+async function deleteClass(classType) {
+    if (!confirm('Remover esta classe?')) return;
+    await fetch(`${API_URL}/api/admin/class-stats/${encodeURIComponent(classType)}`, { method: 'DELETE' });
+    loadClassStats();
+}
+
+// ============================================
+// MAP EDITOR LOGIC
+// ============================================
+let mapZones = [];
+let currentZone = null;
+let currentSpawns = [];
+let currentMonsters = [];
+let currentTiles = {
+    ground: new Map(),
+    decoration: new Map(),
+    collision: new Map()
+};
+let currentLayer = 'ground';
+let selectedTilePath = null;
+let mapPixiApp = null;
+let mapContainer = null;
+let gridLayer = null;
+let tileLayers = {};
+let spawnLayer = null;
+let playerSpawnLayer = null;
+let playerSpawn = null;
+let isPainting = false;
+let lastPaintKey = '';
+const TILE_SIZE = 32;
+
+async function loadMapEditor() {
+    await loadZones();
+    await loadMonsterTemplates();
+    await loadTileset();
+    handleMapModeChange();
+    currentLayer = document.getElementById('map_layer').value;
+    if (mapZones.length > 0) {
+        document.getElementById('map_zoneSelect').value = mapZones[0].id;
+        await loadMapZone();
+    }
+}
+
+async function loadZones() {
+    const res = await fetch(`${API_URL}/api/admin/zones`);
+    mapZones = await res.json();
+    const select = document.getElementById('map_zoneSelect');
+    select.innerHTML = mapZones.map(z => `<option value="${z.id}">${z.name} (${z.id})</option>`).join('');
+}
+
+async function loadMonsterTemplates() {
+    const res = await fetch(`${API_URL}/api/admin/monsters`);
+    currentMonsters = await res.json();
+    const select = document.getElementById('spawn_monsterId');
+    select.innerHTML = currentMonsters.map(m => `<option value="${m.id}">${m.name} (${m.id})</option>`).join('');
+}
+
+async function loadMapZone() {
+    const zoneId = document.getElementById('map_zoneSelect').value;
+    currentZone = mapZones.find(z => z.id === zoneId);
+    await loadSpawns(zoneId);
+    await loadMapTiles(zoneId);
+    await loadPlayerSpawnForZone(zoneId);
+    await initMapPixi();
+    renderAllTiles();
+    renderSpawnMarkers();
+    renderPlayerSpawnMarker();
+}
+
+async function loadSpawns(zoneId) {
+    const res = await fetch(`${API_URL}/api/admin/spawns?zoneId=${encodeURIComponent(zoneId)}`);
+    currentSpawns = await res.json();
+    renderSpawnsTable();
+    renderSpawnMarkers();
+}
+
+function renderSpawnsTable() {
+    document.getElementById('spawnsTableBody').innerHTML = currentSpawns.map(s => `
+        <tr>
+            <td>${s.id}</td>
+            <td>${s.monster_id}</td>
+            <td>${s.x}</td>
+            <td>${s.y}</td>
+            <td>${s.level_override ?? '-'}</td>
+            <td>${s.respawn_time ?? '-'}</td>
+            <td>
+                <button class="btn btn-sm btn-warning" onclick="editSpawn(${s.id})">Editar</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteSpawn(${s.id})">Remover</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderSpawnMarkers() {
+    if (!currentZone || !spawnLayer) return;
+    spawnLayer.removeChildren();
+    currentSpawns.forEach(s => {
+        const marker = new PIXI.Graphics();
+        marker.rect(-6, -6, 12, 12).fill(0xffcc00).stroke({ width: 1, color: 0x000000 });
+        marker.position.set(s.x, s.y);
+        spawnLayer.addChild(marker);
+    });
+}
+
+function renderPlayerSpawnMarker() {
+    if (!currentZone || !playerSpawnLayer) return;
+    playerSpawnLayer.removeChildren();
+
+    const xField = document.getElementById('player_spawn_x');
+    const yField = document.getElementById('player_spawn_y');
+
+    if (!playerSpawn) {
+        if (xField) xField.value = '';
+        if (yField) yField.value = '';
+        return;
+    }
+
+    if (xField) xField.value = playerSpawn.x ?? '';
+    if (yField) yField.value = playerSpawn.y ?? '';
+
+    const marker = new PIXI.Graphics();
+    marker.circle(0, 0, 10).fill(0x00ccff).stroke({ width: 2, color: 0x000000, alpha: 0.8 });
+    marker.position.set(playerSpawn.x, playerSpawn.y);
+    playerSpawnLayer.addChild(marker);
+}
+
+async function loadPlayerSpawnForZone(zoneId) {
+    playerSpawn = null;
+    try {
+        const res = await fetch(`${API_URL}/api/admin/player-spawns?zoneId=${encodeURIComponent(zoneId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.x !== undefined && data.y !== undefined) {
+            playerSpawn = { x: data.x, y: data.y };
+        }
+    } catch (_e) {
+        // ignore
+    }
+}
+
+function handleMapModeChange() {
+    const mode = document.getElementById('map_mode')?.value;
+    const tilesetCard = document.getElementById('map_tilesetCard');
+    const spawnCard = document.getElementById('map_monsterSpawnCard');
+    const playerCard = document.getElementById('map_playerSpawnCard');
+    const layerSelect = document.getElementById('map_layer');
+
+    if (tilesetCard) tilesetCard.style.display = mode === 'tiles' ? 'block' : 'none';
+    if (spawnCard) spawnCard.style.display = mode === 'spawns' ? 'block' : 'none';
+    if (playerCard) playerCard.style.display = mode === 'playerSpawn' ? 'block' : 'none';
+    if (layerSelect) layerSelect.disabled = mode !== 'tiles';
+}
+
+function findSpawnAtTile(tileX, tileY) {
+    return currentSpawns.find(s => Math.floor(s.x / TILE_SIZE) === tileX && Math.floor(s.y / TILE_SIZE) === tileY);
+}
+
+async function upsertSpawnAtTile(tileX, tileY, worldX, worldY) {
+    const zoneId = document.getElementById('map_zoneSelect').value;
+    const existing = findSpawnAtTile(tileX, tileY);
+
+    const payload = {
+        id: existing ? existing.id : null,
+        zoneId,
+        monsterId: document.getElementById('spawn_monsterId').value,
+        levelOverride: document.getElementById('spawn_level').value ? parseInt(document.getElementById('spawn_level').value) : null,
+        respawnTime: document.getElementById('spawn_respawn').value ? parseInt(document.getElementById('spawn_respawn').value) : null,
+        x: Math.round(worldX),
+        y: Math.round(worldY)
+    };
+
+    await fetch(`${API_URL}/api/admin/spawns/save`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    await loadSpawns(zoneId);
+}
+
+async function removeSpawnAtTile(tileX, tileY) {
+    const zoneId = document.getElementById('map_zoneSelect').value;
+    const existing = findSpawnAtTile(tileX, tileY);
+    if (!existing) return;
+    await fetch(`${API_URL}/api/admin/spawns/${existing.id}`, { method: 'DELETE' });
+    await loadSpawns(zoneId);
+}
+
+async function setPlayerSpawnAt(worldX, worldY) {
+    const zoneId = document.getElementById('map_zoneSelect').value;
+    await fetch(`${API_URL}/api/admin/player-spawns`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ zoneId, x: Math.round(worldX), y: Math.round(worldY) })
+    });
+    playerSpawn = { x: Math.round(worldX), y: Math.round(worldY) };
+    renderPlayerSpawnMarker();
+}
+
+async function clearPlayerSpawn() {
+    const zoneId = document.getElementById('map_zoneSelect').value;
+    await fetch(`${API_URL}/api/admin/player-spawns?zoneId=${encodeURIComponent(zoneId)}`, { method: 'DELETE' });
+    playerSpawn = null;
+    renderPlayerSpawnMarker();
+}
+
+async function saveSpawn() {
+    const zoneId = document.getElementById('map_zoneSelect').value;
+    const id = document.getElementById('spawn_id').value;
+    const payload = {
+        id: id ? parseInt(id) : null,
+        zoneId,
+        monsterId: document.getElementById('spawn_monsterId').value,
+        levelOverride: document.getElementById('spawn_level').value ? parseInt(document.getElementById('spawn_level').value) : null,
+        respawnTime: document.getElementById('spawn_respawn').value ? parseInt(document.getElementById('spawn_respawn').value) : null,
+        x: parseInt(document.getElementById('spawn_x').value),
+        y: parseInt(document.getElementById('spawn_y').value)
+    };
+
+    await fetch(`${API_URL}/api/admin/spawns/save`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    document.getElementById('spawn_id').value = '';
+    await loadSpawns(zoneId);
+}
+
+function editSpawn(id) {
+    const s = currentSpawns.find(x => x.id === id);
+    if (!s) return;
+    document.getElementById('spawn_id').value = s.id;
+    document.getElementById('spawn_monsterId').value = s.monster_id;
+    document.getElementById('spawn_level').value = s.level_override ?? '';
+    document.getElementById('spawn_respawn').value = s.respawn_time ?? '';
+    document.getElementById('spawn_x').value = s.x;
+    document.getElementById('spawn_y').value = s.y;
+}
+
+async function deleteSpawn(id) {
+    if (!confirm('Remover este spawn?')) return;
+    await fetch(`${API_URL}/api/admin/spawns/${id}`, { method: 'DELETE' });
+    await loadSpawns(document.getElementById('map_zoneSelect').value);
+}
+
+async function loadTileset() {
+    const res = await fetch(`${API_URL}/api/admin/tileset`);
+    const files = await res.json();
+    const grouped = {};
+    files.forEach(path => {
+        const parts = path.split('/');
+        const group = parts.length > 1 ? parts[0] : 'root';
+        if (!grouped[group]) grouped[group] = [];
+        grouped[group].push(path);
+    });
+
+    const container = document.getElementById('tilesetList');
+    container.innerHTML = '';
+    Object.keys(grouped).sort().forEach(group => {
+        const title = document.createElement('div');
+        title.className = 'text-muted';
+        title.style.margin = '6px 0';
+        title.textContent = group;
+        container.appendChild(title);
+
+        grouped[group].forEach(file => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-sm btn-outline-light w-100 mb-1';
+            btn.textContent = file;
+            btn.onclick = () => selectTile(file, btn);
+            container.appendChild(btn);
+        });
+    });
+}
+
+function selectTile(path, btn) {
+    selectedTilePath = path;
+    document.querySelectorAll('#tilesetList button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+async function initMapPixi() {
+    if (mapPixiApp) return;
+    const preview = document.getElementById('mapPreview');
+    mapPixiApp = new PIXI.Application();
+    const width = preview.clientWidth || 800;
+    const height = preview.clientHeight || 480;
+    await mapPixiApp.init({ width, height, backgroundColor: 0x222222 });
+    preview.appendChild(mapPixiApp.canvas);
+
+    mapContainer = new PIXI.Container();
+    gridLayer = new PIXI.Graphics();
+    tileLayers = {
+        ground: new PIXI.Container(),
+        decoration: new PIXI.Container(),
+        collision: new PIXI.Container()
+    };
+    spawnLayer = new PIXI.Container();
+    playerSpawnLayer = new PIXI.Container();
+
+    mapContainer.addChild(gridLayer);
+    mapContainer.addChild(tileLayers.ground);
+    mapContainer.addChild(tileLayers.decoration);
+    mapContainer.addChild(tileLayers.collision);
+    mapContainer.addChild(spawnLayer);
+    mapContainer.addChild(playerSpawnLayer);
+    mapPixiApp.stage.addChild(mapContainer);
+
+    mapPixiApp.canvas.addEventListener('pointerdown', (e) => {
+        isPainting = true;
+        handleMapClick(e);
+    });
+    window.addEventListener('pointerup', () => {
+        isPainting = false;
+        lastPaintKey = '';
+    });
+    mapPixiApp.canvas.addEventListener('pointermove', (e) => {
+        if (!isPainting) return;
+        handleMapClick(e);
+    });
+
+    resizeMapPixi();
+    drawGrid();
+    window.addEventListener('resize', resizeMapPixi);
+}
+
+function resizeMapPixi() {
+    const preview = document.getElementById('mapPreview');
+    if (!currentZone || !mapPixiApp) return;
+    mapPixiApp.renderer.resize(preview.clientWidth, preview.clientHeight);
+    const scale = Math.min(preview.clientWidth / currentZone.width, preview.clientHeight / currentZone.height);
+    mapContainer.scale.set(scale);
+    mapContainer.position.set(0, 0);
+    drawGrid();
+    renderAllTiles();
+    renderSpawnMarkers();
+    renderPlayerSpawnMarker();
+}
+
+function drawGrid() {
+    if (!currentZone || !gridLayer) return;
+    gridLayer.clear();
+    gridLayer.stroke({ width: 1, color: 0x2f2f2f, alpha: 0.6 });
+    for (let x = 0; x <= currentZone.width; x += TILE_SIZE) {
+        gridLayer.moveTo(x, 0).lineTo(x, currentZone.height);
+    }
+    for (let y = 0; y <= currentZone.height; y += TILE_SIZE) {
+        gridLayer.moveTo(0, y).lineTo(currentZone.width, y);
+    }
+}
+
+async function handleMapClick(e) {
+    if (!currentZone || !mapPixiApp || !mapPixiApp.canvas) return;
+    const mode = document.getElementById('map_mode').value;
+    const brush = document.getElementById('map_brush').value;
+    const rect = mapPixiApp.canvas.getBoundingClientRect();
+    const scale = mapContainer.scale.x || 1;
+    const localX = (e.clientX - rect.left) / scale;
+    const localY = (e.clientY - rect.top) / scale;
+    const tileX = Math.floor(localX / TILE_SIZE);
+    const tileY = Math.floor(localY / TILE_SIZE);
+    const worldX = tileX * TILE_SIZE + TILE_SIZE / 2;
+    const worldY = tileY * TILE_SIZE + TILE_SIZE / 2;
+
+    if (mode === 'spawns') {
+        document.getElementById('spawn_x').value = Math.round(worldX);
+        document.getElementById('spawn_y').value = Math.round(worldY);
+        const paintKey = `spawns:${tileX},${tileY}`;
+        if (paintKey === lastPaintKey) return;
+        lastPaintKey = paintKey;
+
+        if (brush === 'erase') {
+            await removeSpawnAtTile(tileX, tileY);
+            return;
+        }
+
+        await upsertSpawnAtTile(tileX, tileY, worldX, worldY);
+        return;
+    }
+
+    if (mode === 'playerSpawn') {
+        const paintKey = `playerSpawn:${tileX},${tileY}`;
+        if (paintKey === lastPaintKey) return;
+        lastPaintKey = paintKey;
+
+        if (brush === 'erase') {
+            await clearPlayerSpawn();
+            return;
+        }
+
+        await setPlayerSpawnAt(worldX, worldY);
+        return;
+    }
+
+    const paintKey = `${currentLayer}:${tileX},${tileY}`;
+    if (paintKey === lastPaintKey) return;
+    lastPaintKey = paintKey;
+
+    if (brush === 'erase') {
+        removeTile(currentLayer, tileX, tileY);
+        return;
+    }
+
+    if (!selectedTilePath) return;
+    setTile(currentLayer, tileX, tileY, selectedTilePath);
+}
+
+async function loadMapTiles(zoneId) {
+    const res = await fetch(`${API_URL}/api/admin/map?zoneId=${encodeURIComponent(zoneId)}`);
+    const data = await res.json();
+    currentTiles = {
+        ground: new Map(),
+        decoration: new Map(),
+        collision: new Map()
+    };
+    data.forEach(t => {
+        const key = `${t.x},${t.y}`;
+        if (currentTiles[t.layer]) currentTiles[t.layer].set(key, t.tile_path);
+    });
+}
+
+function renderAllTiles() {
+    if (!tileLayers || !currentZone) return;
+    Object.values(tileLayers).forEach(layer => layer.removeChildren());
+    ['ground', 'decoration', 'collision'].forEach(layer => {
+        currentTiles[layer].forEach((tilePath, key) => {
+            const [x, y] = key.split(',').map(Number);
+            renderTile(layer, x, y, tilePath);
+        });
+    });
+}
+
+async function renderTile(layer, tileX, tileY, tilePath) {
+    const texture = await PIXI.Assets.load(`/assets/tileset/${tilePath}`);
+    const sprite = new PIXI.Sprite(texture);
+    sprite.anchor.set(0.5);
+    sprite.position.set(tileX * TILE_SIZE + TILE_SIZE / 2, tileY * TILE_SIZE + TILE_SIZE / 2);
+    sprite.width = TILE_SIZE;
+    sprite.height = TILE_SIZE;
+    if (layer === 'collision') sprite.alpha = 0.6;
+    tileLayers[layer].addChild(sprite);
+}
+
+function setTile(layer, tileX, tileY, tilePath) {
+    const key = `${tileX},${tileY}`;
+    currentTiles[layer].set(key, tilePath);
+    renderAllTiles();
+}
+
+function removeTile(layer, tileX, tileY) {
+    const key = `${tileX},${tileY}`;
+    currentTiles[layer].delete(key);
+    renderAllTiles();
+}
+
+function setLayerVisibility(layer, visible) {
+    if (!tileLayers[layer]) return;
+    tileLayers[layer].visible = visible;
+}
+
+async function saveMap() {
+    const zoneId = document.getElementById('map_zoneSelect').value;
+    const payload = [];
+    ['ground', 'decoration', 'collision'].forEach(layer => {
+        currentTiles[layer].forEach((tilePath, key) => {
+            const [x, y] = key.split(',').map(Number);
+            payload.push({ layer, tilePath, x, y });
+        });
+    });
+    await fetch(`${API_URL}/api/admin/map/save`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ zoneId, tiles: payload })
+    });
+    alert('Mapa salvo!');
 }
 
 async function applyChanges() {
@@ -843,24 +2294,103 @@ async function applyChanges() {
     if(res.ok) alert('🚀 Servidor sincronizado!');
 }
 
+
+// ============================================
+// SPAWN ZONES LOGIC
+// ============================================
+let spawnZones = [];
+
+async function loadSpawnZonesTab() {
+    await loadSpawnZonesList();
+    if (spawnZones.length > 0) {
+        const select = document.getElementById('spawn_zoneSelect');
+        if (!select.value) select.value = spawnZones[0].id;
+        await loadPlayerSpawn(select.value);
+    }
+}
+
+async function loadSpawnZonesList() {
+    const res = await fetch(`${API_URL}/api/admin/zones`);
+    spawnZones = await res.json();
+    const select = document.getElementById('spawn_zoneSelect');
+    select.innerHTML = spawnZones.map(z => `<option value="${z.id}">${z.name} (${z.id})</option>`).join('');
+}
+
+async function handleSpawnZoneChange() {
+    const zoneId = document.getElementById('spawn_zoneSelect').value;
+    await loadPlayerSpawn(zoneId);
+}
+
+async function loadPlayerSpawn(zoneId) {
+    if (!zoneId) return;
+    const res = await fetch(`${API_URL}/api/admin/player-spawns?zoneId=${encodeURIComponent(zoneId)}`);
+    const data = await res.json();
+    const zone = spawnZones.find(z => z.id === zoneId);
+
+    let x = data?.x;
+    let y = data?.y;
+    if ((x === undefined || y === undefined) && zone) {
+        x = Math.floor(zone.width / 2);
+        y = Math.floor(zone.height / 2);
+    }
+
+    document.getElementById('spawn_zone_x').value = x ?? '';
+    document.getElementById('spawn_zone_y').value = y ?? '';
+}
+
+async function savePlayerSpawn() {
+    const zoneId = document.getElementById('spawn_zoneSelect').value;
+    const x = parseInt(document.getElementById('spawn_zone_x').value);
+    const y = parseInt(document.getElementById('spawn_zone_y').value);
+    if (!zoneId || Number.isNaN(x) || Number.isNaN(y)) {
+        alert('Preencha zona, X e Y.');
+        return;
+    }
+
+    await fetch(`${API_URL}/api/admin/player-spawns`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ zoneId, x, y })
+    });
+    alert('Spawn inicial salvo!');
+}
+
 let currentVisualMode = 'global';  // ✅ NOVO: rastreia modo atual
 let currentItemId = null;  // ✅ NOVO: item selecionado
+let currentVisualConfigId = null;  // ✅ NOVO: visual config selecionado
+let currentItemVisualConfigId = null;
+let cachedVisualConfigs = [];
 let baseBallSprite = null;  // ✅ NOVO: referência ao sprite base
 
 // ✅ NOVO: Alternar entre Global e Item
 async function switchVisualMode() {
     currentVisualMode = document.getElementById('visualModeSelect').value;
     const itemContainer = document.getElementById('itemSelectorContainer');
+    const configContainer = document.getElementById('configSelectorContainer');
     
     if (currentVisualMode === 'item') {
         itemContainer.style.display = 'block';
+        configContainer.style.display = 'none';
         await loadItemsForVisualConfig();
-    } else {
-        itemContainer.style.display = 'none';
+        await loadVisualConfigs();
         currentItemId = null;
+        currentVisualConfigId = null;
         layers = [];
         renderTimeline();
         await renderPreview();
+    } else if (currentVisualMode === 'config') {
+        itemContainer.style.display = 'none';
+        configContainer.style.display = 'block';
+        await loadVisualConfigs();
+        layers = [];
+        renderTimeline();
+        await renderPreview();
+    } else {
+        itemContainer.style.display = 'none';
+        configContainer.style.display = 'none';
+        currentItemId = null;
+        currentVisualConfigId = null;
+        await loadGlobalLayersForEdit();
     }
     
     updateSaveButtonText();
@@ -880,6 +2410,118 @@ async function loadItemsForVisualConfig() {
     }
 }
 
+async function loadVisualConfigs() {
+    try {
+        const res = await fetch(`${API_URL}/api/admin/visual/configs`);
+        cachedVisualConfigs = await res.json();
+
+        const options = '<option value="">-- Selecione um Visual Config --</option>' +
+            cachedVisualConfigs.map(c => `<option value="${c.id}">${c.type}_${c.target_id} (#${c.id})</option>`).join('');
+
+        const select = document.getElementById('visualConfigSelect');
+        if (select) select.innerHTML = options;
+
+        const itemSelect = document.getElementById('visualItemConfigSelect');
+        if (itemSelect) itemSelect.innerHTML = options;
+    } catch (e) {
+        console.error('[Visual] Erro ao carregar visual configs:', e);
+        cachedVisualConfigs = [];
+    }
+}
+
+async function loadGlobalLayersForEdit() {
+    try {
+        const res = await fetch(`${API_URL}/api/admin/visual/global-layers`);
+        const data = await res.json();
+        layers = data.layers || [];
+        sanitizeLayersForEdit();
+        renderTimeline();
+        await renderPreview();
+    } catch (e) {
+        console.error('[Visual] Erro ao carregar camadas globais:', e);
+        layers = [];
+        renderTimeline();
+        await renderPreview();
+    }
+}
+
+function startNewVisualConfig() {
+    currentVisualConfigId = null;
+    const select = document.getElementById('visualConfigSelect');
+    if (select) select.value = '';
+    document.getElementById('visualConfigType').value = 'EYE';
+    document.getElementById('visualConfigTargetId').value = '1';
+    layers = [];
+    renderTimeline();
+    renderPreview();
+    updateSaveButtonText();
+}
+
+async function deleteVisualConfig() {
+    if (!currentVisualConfigId) {
+        alert('Selecione um Visual Config primeiro.');
+        return;
+    }
+    const confirmDelete = confirm('Tem certeza que deseja excluir este Visual Config?');
+    if (!confirmDelete) return;
+
+    try {
+        const res = await fetch(`${API_URL}/api/admin/visual/configs/${currentVisualConfigId}`, { method: 'DELETE' });
+        if (res.ok) {
+            currentVisualConfigId = null;
+            await loadVisualConfigs();
+            layers = [];
+            renderTimeline();
+            await renderPreview();
+            updateSaveButtonText();
+            alert('✅ Visual Config excluído.');
+        } else {
+            alert('❌ Erro ao excluir Visual Config.');
+        }
+    } catch (e) {
+        console.error('[Visual] Erro ao excluir visual config:', e);
+        alert('❌ Erro de conexão');
+    }
+}
+
+async function loadSelectedVisualConfig() {
+    const select = document.getElementById('visualConfigSelect');
+    currentVisualConfigId = select ? select.value : null;
+    if (!currentVisualConfigId) {
+        layers = [];
+        renderTimeline();
+        await renderPreview();
+        updateSaveButtonText();
+        return;
+    }
+
+    const config = cachedVisualConfigs.find(c => String(c.id) === String(currentVisualConfigId));
+    if (!config) return;
+    document.getElementById('visualConfigType').value = config.type;
+    document.getElementById('visualConfigTargetId').value = String(config.target_id);
+    layers = config.layers || [];
+    sanitizeLayersForEdit();
+    renderTimeline();
+    await renderPreview();
+    updateSaveButtonText();
+}
+
+async function previewItemVisualConfig() {
+    const select = document.getElementById('visualItemConfigSelect');
+    currentItemVisualConfigId = select ? select.value : null;
+    if (!currentItemVisualConfigId) {
+        layers = [];
+        renderTimeline();
+        await renderPreview();
+        return;
+    }
+    const config = cachedVisualConfigs.find(c => String(c.id) === String(currentItemVisualConfigId));
+    layers = config?.layers || [];
+    sanitizeLayersForEdit();
+    renderTimeline();
+    await renderPreview();
+}
+
 // ✅ NOVO: Carregar config de um item
 async function loadItemVisualConfig() {
     currentItemId = document.getElementById('visualItemSelect').value;
@@ -896,6 +2538,12 @@ async function loadItemVisualConfig() {
         if (res.ok) {
             const data = await res.json();
             layers = data.layers || [];
+            sanitizeLayersForEdit();
+            const configSelect = document.getElementById('visualItemConfigSelect');
+            if (configSelect) {
+                configSelect.value = data.visualConfigId ? String(data.visualConfigId) : '';
+            }
+            currentItemVisualConfigId = data.visualConfigId || null;
             renderTimeline();
             await renderPreview();
         }
@@ -912,9 +2560,11 @@ function updateSaveButtonText() {
     const btn = document.querySelector('button[onclick="saveGlobalConfig()"]');
     if (!btn) return;
     
-    if (currentVisualMode === 'item' && currentItemId) {
+    if (currentVisualMode === 'item') {
         const itemName = document.getElementById('visualItemSelect').selectedOptions[0]?.text || 'Item';
-        btn.textContent = `💾 Salvar Config para ${itemName}`;
+        btn.textContent = `💾 Atribuir Visual para ${itemName}`;
+    } else if (currentVisualMode === 'config') {
+        btn.textContent = currentVisualConfigId ? '💾 Salvar Visual Config' : '💾 Criar Visual Config';
     } else {
         btn.textContent = '💾 Salvar Config Global';
     }
@@ -941,14 +2591,18 @@ async function initPixi() {
     await loadBaseBall();
 
     const highlight = new PIXI.Graphics();
-    highlight.circle(0, 0, 30);
+    highlight.circle(0, 0, 26);
     highlight.stroke({ width: 2, color: 0xffff00, alpha: 0.5 });
+    highlight.zIndex = -10;
     previewContainer.addChild(highlight);
 
     pixiApp.ticker.add(() => {
         const bounce = Math.sin(Date.now() / 200) * 0.04;
-        previewContainer.scale.set(1 + bounce);
+        previewContainer.scale.x = previewFacing * (1 - bounce);
+        previewContainer.scale.y = 1 + bounce;
     });
+
+    await loadGlobalLayersForEdit();
 }
 
 // ✅ NOVA FUNÇÃO: Carregar sprite base do corpo
@@ -960,6 +2614,8 @@ async function loadBaseBall() {
         baseBallSprite = new PIXI.Sprite(texture);
         baseBallSprite.anchor.set(0.5);
         baseBallSprite.scale.set(1.0);  // Escala fixa
+        baseBallSprite.width = 58;
+        baseBallSprite.height = 58;
         baseBallSprite.zIndex = 0;  // Sempre na camada mais baixa
         
         previewContainer.addChild(baseBallSprite);
@@ -1001,15 +2657,20 @@ function addLayerToTimeline() {
 
     const defaults = {
         bodies: { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0, width: 58, height: 58 },
-        faces: { offsetX: 0, offsetY: 5, scale: 1.0, rotation: 0, width: 35, height: 18 },
-        hats: { offsetX: 0, offsetY: -20, scale: 1.0, rotation: 0, width: 60, height: 45 }
+        eyes: { offsetX: 0, offsetY: 5, scale: 1.0, rotation: 0, width: 35, height: 18 },
+        hats: { offsetX: 0, offsetY: -20, scale: 1.0, rotation: 0, width: 60, height: 45 },
+        masks: { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0, width: 40, height: 40 },
+        weapons: { offsetX: 15, offsetY: 5, scale: 1.0, rotation: 0, width: 40, height: 40 },
+        armor: { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0, width: 58, height: 58 },
+        pets: { offsetX: -20, offsetY: 10, scale: 1.0, rotation: 0, width: 40, height: 40 }
     };
 
     layers.push({
         type,
         asset,
         ...defaults[type],
-        zIndex: layers.length
+        zIndex: layers.length,
+        mirrorMode: 'mirror'
     });
 
     renderTimeline();
@@ -1049,6 +2710,14 @@ function removeLayer(index) {
 
 function showLayerControls(layer) {
     const controls = document.getElementById('layerControls');
+
+    if (layer.type === 'bodies') {
+        controls.innerHTML = `
+            <strong>${layer.asset}</strong>
+            <p class="text-muted mt-2 mb-0">Base body (bolinha) size is global/fixed and cannot be edited here.</p>
+        `;
+        return;
+    }
     
     controls.innerHTML = `
         <strong>${layer.asset}</strong>
@@ -1060,22 +2729,36 @@ function showLayerControls(layer) {
         <input type="range" class="form-range" id="range_offsetY" min="-100" max="100" value="${layer.offsetY}" oninput="updateLayerProp('offsetY', this.value)">
 
         <label>Escala: <span id="val_scale">${layer.scale.toFixed(2)}</span></label>
-        <input type="range" class="form-range" id="range_scale" min="0.1" max="3.0" step="0.05" value="${layer.scale}" oninput="updateLayerProp('scale', this.value)">
+        <input type="range" class="form-range" id="range_scale" min="0.2" max="2.0" step="0.05" value="${layer.scale}" oninput="updateLayerProp('scale', this.value)">
 
         <label>Rotação: <span id="val_rotation">${layer.rotation}°</span></label>
         <input type="range" class="form-range" id="range_rotation" min="-180" max="180" step="5" value="${layer.rotation}" oninput="updateLayerProp('rotation', this.value)">
+
+        <label>Mirror Mode</label>
+        <select class="form-select mb-2" id="mirror_mode" onchange="updateLayerProp('mirrorMode', this.value)">
+            <option value="mirror" ${layer.mirrorMode === 'mirror' ? 'selected' : ''}>Mirror (A)</option>
+            <option value="swap" ${layer.mirrorMode === 'swap' ? 'selected' : ''}>Swap (B)</option>
+        </select>
     `;
 }
 
 function updateLayerProp(prop, value) {
     if (selectedLayerIndex === -1) return;
+    if (layers[selectedLayerIndex]?.type === 'bodies') return;
 
-    const numValue = parseFloat(value);
-    layers[selectedLayerIndex][prop] = numValue;
+    if (prop === 'mirrorMode') {
+        layers[selectedLayerIndex][prop] = value;
+    } else {
+        let numValue = parseFloat(value);
+        if (prop === 'scale') numValue = Math.max(0.2, Math.min(2.0, numValue));
+        if (prop === 'offsetX' || prop === 'offsetY') numValue = Math.max(-100, Math.min(100, numValue));
+        if (prop === 'rotation') numValue = Math.max(-180, Math.min(180, numValue));
+        layers[selectedLayerIndex][prop] = numValue;
 
-    const displayElement = document.getElementById(`val_${prop}`);
-    if (displayElement) {
-        displayElement.innerText = prop === 'scale' ? numValue.toFixed(2) : Math.round(numValue);
+        const displayElement = document.getElementById(`val_${prop}`);
+        if (displayElement) {
+            displayElement.innerText = prop === 'scale' ? numValue.toFixed(2) : Math.round(numValue);
+        }
     }
     
     renderPreview();
@@ -1100,7 +2783,8 @@ async function renderPreview() {
 
     for (let i = 0; i < layers.length; i++) {
         const layer = layers[i];
-        const path = `${CLIENT_URL}/assets/sprites/${layer.type}/${layer.asset}.png`;
+        const type = layer.type === 'faces' ? 'eyes' : layer.type;
+        const path = `${CLIENT_URL}/assets/sprites/${type}/${layer.asset}.png`;
 
         try {
             const texture = await PIXI.Assets.load(path);
@@ -1108,9 +2792,16 @@ async function renderPreview() {
             sprite.anchor.set(0.5);
             sprite.x = layer.offsetX;
             sprite.y = layer.offsetY;
-            sprite.scale.set(layer.scale);
+            const scale = layer.scale || 1.0;
+            const mirrorMode = layer.mirrorMode || 'mirror';
+            sprite.scale.set(scale, scale);
             sprite.rotation = (layer.rotation * Math.PI) / 180;
-            sprite.zIndex = i + 1;  // ✅ MUDADO: +1 para ficar acima da bolinha
+            sprite.width = (layer.width || sprite.texture.width) * scale;
+            sprite.height = (layer.height || sprite.texture.height) * scale;
+            if (mirrorMode === 'swap' && previewFacing === -1) {
+                sprite.scale.x = -Math.abs(sprite.scale.x);
+            }
+            sprite.zIndex = (typeof layer.zIndex === 'number' ? layer.zIndex : i) + 1;  // above base ball
 
             previewContainer.addChild(sprite);
             layerSprites.set(i, sprite);
@@ -1122,25 +2813,62 @@ async function renderPreview() {
     previewContainer.sortChildren();
 }
 
+async function migrateLegacyItemVisuals() {
+    const confirmRun = confirm('Isso vai criar Visual Configs no DB para itens que ainda usam data.visualLayers. Continuar?');
+    if (!confirmRun) return;
+
+    try {
+        const res = await fetch(`${API_URL}/api/admin/visual/migrate-item-visuals`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+            alert('❌ Falha ao migrar');
+            return;
+        }
+        await loadVisualConfigs();
+        await loadItems();
+        alert(`✅ Migrados: ${data.migrated || 0}`);
+    } catch (e) {
+        console.error('[Visual] Erro ao migrar:', e);
+        alert('❌ Erro de conexão');
+    }
+}
+
+function setPreviewFacing(dir) {
+    previewFacing = dir === -1 ? -1 : 1;
+    renderPreview();
+}
+
 async function saveGlobalConfig() {
     if (layers.length === 0 && currentVisualMode === 'global') {
-        alert('Adicione pelo menos uma camada além da bolinha base!');
+        alert('Adicione pelo menos uma camada al?m da bolinha base!');
         return;
     }
 
     try {
+        const layersToSave = Array.isArray(layers) ? layers.filter(l => l && l.type !== 'bodies') : [];
         let endpoint, body;
-        
-        if (currentVisualMode === 'item' && currentItemId) {
-            // ✅ Salvar para item específico
-            endpoint = `${API_URL}/api/admin/visual/save-item-config`;
-            body = { itemId: currentItemId, layers };
+
+        if (currentVisualMode === 'item') {
+            if (!currentItemId) {
+                alert('Selecione um item.');
+                return;
+            }
+            endpoint = `${API_URL}/api/admin/visual/items/assign`;
+            body = { itemId: currentItemId, visualConfigId: currentItemVisualConfigId || null };
+        } else if (currentVisualMode === 'config') {
+            const type = document.getElementById('visualConfigType').value;
+            const targetId = parseInt(document.getElementById('visualConfigTargetId').value || '0', 10);
+            if (!type || !targetId) {
+                alert('Tipo e Target ID s?o obrigat?rios.');
+                return;
+            }
+            endpoint = `${API_URL}/api/admin/visual/configs/save`;
+            body = { id: currentVisualConfigId || undefined, type, targetId, layers: layersToSave, overrides: {} };
         } else {
-            // Salvar globalmente
             endpoint = `${API_URL}/api/admin/visual/save-global-layers`;
-            body = { layers };
+            body = { layers: layersToSave };
         }
-        
+
         const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1148,14 +2876,619 @@ async function saveGlobalConfig() {
         });
 
         if (res.ok) {
-            alert('✅ Configuração salva com sucesso!');
+            if (currentVisualMode === 'config') {
+                await loadVisualConfigs();
+            }
+            alert('? Configura??o salva com sucesso!');
         } else {
-            alert('❌ Erro ao salvar');
+            alert('? Erro ao salvar');
         }
     } catch (e) {
         console.error(e);
-        alert('❌ Erro de conexão');
+        alert('? Erro de conex?o');
     }
+}
+
+// ============================================
+// UI EDITOR LOGIC
+// ============================================
+let uiPreviewApp = null;
+let uiPreviewContainer = null;
+let uiCurrentKey = 'health_mana_bar';
+let uiCurrentConfig = null;
+let uiAssetList = [];
+let uiFontList = [];
+let uiCurrentElement = null;
+
+const uiSamplePlayer = {
+    name: 'Test',
+    level: 7,
+    currentHp: 500,
+    maxHp: 780,
+    currentMana: 320,
+    maxMana: 350
+};
+
+const UI_DEFAULTS = {
+    health_mana_bar: {
+        anchor: 'bottom-left',
+        offsetX: 20,
+        offsetY: 20,
+        scale: 1,
+        assets: {
+            panel: 'panel-base.png',
+            hpFill: 'hp-fill.png',
+            hpOverlay: 'hp-border-overlay.png',
+            manaFill: 'mana-fill.png',
+            manaOverlay: 'mana-border-overlay.png'
+        },
+        fonts: {
+            name: 'font-sheet.fnt',
+            values: 'font-sheet2.fnt'
+        },
+        text: {
+            name: '{player.name}',
+            levelLabel: 'LEVEL',
+            levelNumber: '{player.level}',
+            hp: '{player.currentHp}/{player.maxHp}',
+            mana: '{player.currentMana}/{player.maxMana}'
+        }
+    },
+    skill_bar: {
+        anchor: 'bottom-center',
+        offsetX: 0,
+        offsetY: 20,
+        scale: 1,
+        slotSize: 54,
+        barWidth: 64,
+        barHeight: 6,
+        keyText: 'Q',
+        labelText: 'Basic',
+        colors: {
+            slot: '#2a2a2a',
+            cooldown: '#000000',
+            charge: '#39d98a'
+        }
+    }
+};
+
+const UI_ELEMENTS = {
+    health_mana_bar: {
+        all: ['panel', 'hpFill', 'hpOverlay', 'manaFill', 'manaOverlay', 'nameText', 'levelLabelText', 'levelNumberText', 'hpText', 'manaText'],
+        text: ['nameText', 'levelLabelText', 'levelNumberText', 'hpText', 'manaText']
+    },
+    skill_bar: {
+        all: ['slotBg', 'cooldownOverlay', 'chargeBarBg', 'chargeBarFill', 'keyText', 'labelText'],
+        text: ['keyText', 'labelText']
+    }
+};
+
+async function initUiEditor() {
+    if (!uiPreviewApp) {
+        uiPreviewApp = new PIXI.Application();
+        await uiPreviewApp.init({ width: 800, height: 360, backgroundColor: 0x1a1a1a });
+        document.getElementById('ui-preview').innerHTML = '';
+        document.getElementById('ui-preview').appendChild(uiPreviewApp.canvas);
+        uiPreviewContainer = new PIXI.Container();
+        uiPreviewApp.stage.addChild(uiPreviewContainer);
+    }
+
+    await loadUiAssets();
+    await loadUiConfigForEdit(uiCurrentKey);
+}
+
+async function loadUiAssets() {
+    if (uiAssetList.length && uiFontList.length) return;
+    try {
+        const [uiRes, fontRes] = await Promise.all([
+            fetch(`${API_URL}/api/admin/assets/ui`),
+            fetch(`${API_URL}/api/admin/assets/fonts`)
+        ]);
+        uiAssetList = uiRes.ok ? await uiRes.json() : [];
+        uiFontList = fontRes.ok ? await fontRes.json() : [];
+    } catch (e) {
+        console.error('[UI Editor] Failed to load asset lists:', e);
+        uiAssetList = [];
+        uiFontList = [];
+    }
+
+    const setOptions = (id, list) => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        select.innerHTML = list.map(f => `<option value="${f}">${f}</option>`).join('');
+    };
+
+    setOptions('ui_health_panel', uiAssetList);
+    setOptions('ui_health_hp_fill', uiAssetList);
+    setOptions('ui_health_hp_overlay', uiAssetList);
+    setOptions('ui_health_mana_fill', uiAssetList);
+    setOptions('ui_health_mana_overlay', uiAssetList);
+    setOptions('ui_health_font_name', uiFontList);
+    setOptions('ui_health_font_values', uiFontList);
+    setOptions('ui_element_font', uiFontList);
+}
+
+function handleUiSelectChange() {
+    const select = document.getElementById('ui_editor_select');
+    uiCurrentKey = select.value;
+    loadUiConfigForEdit(uiCurrentKey);
+}
+
+async function loadUiConfigForEdit(uiKey) {
+    const defaults = JSON.parse(JSON.stringify(UI_DEFAULTS[uiKey] || {}));
+    uiCurrentConfig = defaults;
+    try {
+        const res = await fetch(`${API_URL}/api/admin/ui/configs/${uiKey}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data?.config_json) {
+                const saved = data.config_json;
+                uiCurrentConfig = {
+                    ...defaults,
+                    ...saved,
+                    assets: { ...(defaults.assets || {}), ...(saved.assets || {}) },
+                    fonts: { ...(defaults.fonts || {}), ...(saved.fonts || {}) },
+                    text: { ...(defaults.text || {}), ...(saved.text || {}) },
+                    colors: { ...(defaults.colors || {}), ...(saved.colors || {}) },
+                    elementOverrides: { ...(defaults.elementOverrides || {}), ...(saved.elementOverrides || {}) }
+                };
+            }
+        }
+    } catch (e) {
+        console.warn('[UI Editor] No saved config, using defaults.');
+    }
+
+    applyUiConfigToForm();
+    await renderUiPreview();
+}
+
+function applyUiConfigToForm() {
+    const isHealth = uiCurrentKey === 'health_mana_bar';
+    document.getElementById('ui_health_controls').style.display = isHealth ? 'block' : 'none';
+    document.getElementById('ui_skill_controls').style.display = isHealth ? 'none' : 'block';
+
+    document.getElementById('ui_anchor').value = uiCurrentConfig.anchor || 'bottom-left';
+    document.getElementById('ui_offset_x').value = uiCurrentConfig.offsetX ?? 0;
+    document.getElementById('ui_offset_y').value = uiCurrentConfig.offsetY ?? 0;
+    document.getElementById('ui_scale').value = uiCurrentConfig.scale ?? 1;
+
+    if (isHealth) {
+        document.getElementById('ui_health_panel').value = uiCurrentConfig.assets?.panel || 'panel-base.png';
+        document.getElementById('ui_health_hp_fill').value = uiCurrentConfig.assets?.hpFill || 'hp-fill.png';
+        document.getElementById('ui_health_hp_overlay').value = uiCurrentConfig.assets?.hpOverlay || 'hp-border-overlay.png';
+        document.getElementById('ui_health_mana_fill').value = uiCurrentConfig.assets?.manaFill || 'mana-fill.png';
+        document.getElementById('ui_health_mana_overlay').value = uiCurrentConfig.assets?.manaOverlay || 'mana-border-overlay.png';
+        document.getElementById('ui_health_font_name').value = uiCurrentConfig.fonts?.name || 'font-sheet.fnt';
+        document.getElementById('ui_health_font_values').value = uiCurrentConfig.fonts?.values || 'font-sheet2.fnt';
+        document.getElementById('ui_health_text_name').value = uiCurrentConfig.text?.name || '{player.name}';
+        document.getElementById('ui_health_text_level_label').value = uiCurrentConfig.text?.levelLabel || uiCurrentConfig.text?.level || 'LEVEL';
+        document.getElementById('ui_health_text_level_number').value = uiCurrentConfig.text?.levelNumber || '{player.level}';
+        document.getElementById('ui_health_text_hp').value = uiCurrentConfig.text?.hp || '{player.currentHp}/{player.maxHp}';
+        document.getElementById('ui_health_text_mana').value = uiCurrentConfig.text?.mana || '{player.currentMana}/{player.maxMana}';
+    } else {
+        document.getElementById('ui_skill_slot_size').value = uiCurrentConfig.slotSize ?? 54;
+        document.getElementById('ui_skill_bar_width').value = uiCurrentConfig.barWidth ?? 64;
+        document.getElementById('ui_skill_bar_height').value = uiCurrentConfig.barHeight ?? 6;
+        document.getElementById('ui_skill_key_text').value = uiCurrentConfig.keyText || 'Q';
+        document.getElementById('ui_skill_label_text').value = uiCurrentConfig.labelText || 'Basic';
+        document.getElementById('ui_skill_slot_color').value = uiCurrentConfig.colors?.slot || '#2a2a2a';
+        document.getElementById('ui_skill_cooldown_color').value = uiCurrentConfig.colors?.cooldown || '#000000';
+        document.getElementById('ui_skill_charge_color').value = uiCurrentConfig.colors?.charge || '#39d98a';
+    }
+
+    refreshUiElementOptions();
+    if (!uiCurrentElement) {
+        const list = UI_ELEMENTS[uiCurrentKey]?.all || [];
+        uiCurrentElement = list[0] || null;
+    }
+    applyUiElementToForm();
+}
+
+async function handleUiFormChange() {
+    if (!uiCurrentConfig) return;
+    const isHealth = uiCurrentKey === 'health_mana_bar';
+
+    uiCurrentConfig.anchor = document.getElementById('ui_anchor').value;
+    uiCurrentConfig.offsetX = parseFloat(document.getElementById('ui_offset_x').value || '0');
+    uiCurrentConfig.offsetY = parseFloat(document.getElementById('ui_offset_y').value || '0');
+    uiCurrentConfig.scale = Math.max(0.5, Math.min(2.0, parseFloat(document.getElementById('ui_scale').value || '1')));
+
+    if (isHealth) {
+        uiCurrentConfig.assets = {
+            panel: document.getElementById('ui_health_panel').value,
+            hpFill: document.getElementById('ui_health_hp_fill').value,
+            hpOverlay: document.getElementById('ui_health_hp_overlay').value,
+            manaFill: document.getElementById('ui_health_mana_fill').value,
+            manaOverlay: document.getElementById('ui_health_mana_overlay').value
+        };
+        uiCurrentConfig.fonts = {
+            name: document.getElementById('ui_health_font_name').value,
+            values: document.getElementById('ui_health_font_values').value
+        };
+        uiCurrentConfig.text = {
+            name: document.getElementById('ui_health_text_name').value,
+            levelLabel: document.getElementById('ui_health_text_level_label').value,
+            levelNumber: document.getElementById('ui_health_text_level_number').value,
+            hp: document.getElementById('ui_health_text_hp').value,
+            mana: document.getElementById('ui_health_text_mana').value
+        };
+    } else {
+        uiCurrentConfig.slotSize = parseFloat(document.getElementById('ui_skill_slot_size').value || '54');
+        uiCurrentConfig.barWidth = parseFloat(document.getElementById('ui_skill_bar_width').value || '64');
+        uiCurrentConfig.barHeight = parseFloat(document.getElementById('ui_skill_bar_height').value || '6');
+        uiCurrentConfig.keyText = document.getElementById('ui_skill_key_text').value || 'Q';
+        uiCurrentConfig.labelText = document.getElementById('ui_skill_label_text').value || 'Basic';
+        uiCurrentConfig.colors = {
+            slot: document.getElementById('ui_skill_slot_color').value || '#2a2a2a',
+            cooldown: document.getElementById('ui_skill_cooldown_color').value || '#000000',
+            charge: document.getElementById('ui_skill_charge_color').value || '#39d98a'
+        };
+    }
+
+    await renderUiPreview();
+}
+
+function refreshUiElementOptions() {
+    const select = document.getElementById('ui_element_select');
+    const list = UI_ELEMENTS[uiCurrentKey]?.all || [];
+    select.innerHTML = list.map(id => `<option value="${id}">${id}</option>`).join('');
+    if (uiCurrentElement && list.includes(uiCurrentElement)) {
+        select.value = uiCurrentElement;
+    } else {
+        uiCurrentElement = list[0] || null;
+        select.value = uiCurrentElement || '';
+    }
+}
+
+function handleUiElementChange() {
+    const select = document.getElementById('ui_element_select');
+    uiCurrentElement = select.value;
+    applyUiElementToForm();
+}
+
+function applyUiElementToForm() {
+    if (!uiCurrentConfig || !uiCurrentElement) return;
+    const overrides = uiCurrentConfig.elementOverrides || {};
+    const cfg = overrides[uiCurrentElement] || {};
+
+    document.getElementById('ui_element_x').value = cfg.x ?? 0;
+    document.getElementById('ui_element_y').value = cfg.y ?? 0;
+    document.getElementById('ui_element_scale').value = cfg.scale ?? 1;
+    document.getElementById('ui_element_width').value = cfg.width ?? '';
+    document.getElementById('ui_element_height').value = cfg.height ?? '';
+    document.getElementById('ui_element_alpha').value = cfg.alpha ?? 1;
+    document.getElementById('ui_element_tint').value = cfg.tint || '#ffffff';
+
+    const textControls = document.getElementById('ui_element_text_controls');
+    const isText = UI_ELEMENTS[uiCurrentKey]?.text.includes(uiCurrentElement);
+    textControls.style.display = isText ? 'block' : 'none';
+    if (isText) {
+        document.getElementById('ui_element_font').value = cfg.font || 'font-sheet.fnt';
+        document.getElementById('ui_element_font_size').value = cfg.fontSize ?? 16;
+    }
+}
+
+async function handleUiElementInput() {
+    if (!uiCurrentConfig || !uiCurrentElement) return;
+    const overrides = uiCurrentConfig.elementOverrides || {};
+    const cfg = overrides[uiCurrentElement] || {};
+
+    cfg.x = parseFloat(document.getElementById('ui_element_x').value || '0');
+    cfg.y = parseFloat(document.getElementById('ui_element_y').value || '0');
+    cfg.scale = parseFloat(document.getElementById('ui_element_scale').value || '1');
+    const widthVal = document.getElementById('ui_element_width').value;
+    const heightVal = document.getElementById('ui_element_height').value;
+    cfg.width = widthVal === '' ? undefined : parseFloat(widthVal);
+    cfg.height = heightVal === '' ? undefined : parseFloat(heightVal);
+    cfg.alpha = parseFloat(document.getElementById('ui_element_alpha').value || '1');
+    cfg.tint = document.getElementById('ui_element_tint').value || '#ffffff';
+
+    const isText = UI_ELEMENTS[uiCurrentKey]?.text.includes(uiCurrentElement);
+    if (isText) {
+        cfg.font = document.getElementById('ui_element_font').value || 'font-sheet.fnt';
+        cfg.fontSize = parseFloat(document.getElementById('ui_element_font_size').value || '16');
+    }
+
+    overrides[uiCurrentElement] = cfg;
+    uiCurrentConfig.elementOverrides = overrides;
+    await renderUiPreview();
+}
+
+async function saveUiConfig() {
+    if (!uiCurrentConfig) return;
+    const body = { uiName: uiCurrentKey, config: uiCurrentConfig };
+    try {
+        const res = await fetch(`${API_URL}/api/admin/ui/configs/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+            alert('Erro ao salvar UI');
+            return;
+        }
+        alert('Config salva!');
+    } catch (e) {
+        console.error('[UI Editor] Save failed:', e);
+        alert('Erro de conexÇœo');
+    }
+}
+
+async function resetUiConfig() {
+    try {
+        const res = await fetch(`${API_URL}/api/admin/ui/configs/reset`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uiName: uiCurrentKey })
+        });
+        if (!res.ok) {
+            alert('Erro ao resetar UI');
+            return;
+        }
+        await loadUiConfigForEdit(uiCurrentKey);
+    } catch (e) {
+        console.error('[UI Editor] Reset failed:', e);
+        alert('Erro de conexÇœo');
+    }
+}
+
+function replacePlaceholders(text) {
+    return (text || '').replace(/\{player\.([a-zA-Z0-9_]+)\}/g, (_m, key) => {
+        const val = uiSamplePlayer[key];
+        if (key === 'name') return String(val || '').toUpperCase();
+        return val === undefined || val === null ? '' : String(val);
+    });
+}
+
+function fontFamilyFromFile(file) {
+    if (!file) return 'FontSheet';
+    return file.includes('font-sheet2') ? 'FontSheet2' : 'FontSheet';
+}
+
+function getAnchoredPosition(anchor, offsetX, offsetY, width, height) {
+    const w = uiPreviewApp.renderer.width;
+    const h = uiPreviewApp.renderer.height;
+    let x = 0;
+    let y = 0;
+
+    switch (anchor) {
+        case 'top-left':
+            x = offsetX; y = offsetY; break;
+        case 'top-center':
+            x = (w - width) / 2 + offsetX; y = offsetY; break;
+        case 'top-right':
+            x = w - width - offsetX; y = offsetY; break;
+        case 'center-left':
+            x = offsetX; y = (h - height) / 2 + offsetY; break;
+        case 'center':
+            x = (w - width) / 2 + offsetX; y = (h - height) / 2 + offsetY; break;
+        case 'center-right':
+            x = w - width - offsetX; y = (h - height) / 2 + offsetY; break;
+        case 'bottom-left':
+            x = offsetX; y = h - height - offsetY; break;
+        case 'bottom-center':
+            x = (w - width) / 2 + offsetX; y = h - height - offsetY; break;
+        case 'bottom-right':
+            x = w - width - offsetX; y = h - height - offsetY; break;
+    }
+
+    return { x, y };
+}
+
+function getElementOverride(cfg, id) {
+    return (cfg && cfg.elementOverrides && cfg.elementOverrides[id]) ? cfg.elementOverrides[id] : null;
+}
+
+function applySpriteOverride(sprite, cfg, id) {
+    const ov = getElementOverride(cfg, id);
+    if (!ov) return;
+    if (typeof ov.x === 'number') sprite.x = ov.x;
+    if (typeof ov.y === 'number') sprite.y = ov.y;
+    if (typeof ov.scale === 'number') sprite.scale.set(ov.scale);
+    if (typeof ov.width === 'number') sprite.width = ov.width;
+    if (typeof ov.height === 'number') sprite.height = ov.height;
+    if (typeof ov.alpha === 'number') sprite.alpha = ov.alpha;
+    if (ov.tint && typeof ov.tint === 'string') {
+        sprite.tint = parseInt(ov.tint.replace('#', '0x'));
+    }
+}
+
+function applyTextOverride(text, cfg, id) {
+    const ov = getElementOverride(cfg, id);
+    if (!ov) return;
+    if (typeof ov.x === 'number') text.x = ov.x;
+    if (typeof ov.y === 'number') text.y = ov.y;
+    if (typeof ov.alpha === 'number') text.alpha = ov.alpha;
+    if (text.style) {
+        if (ov.font) text.style.fontFamily = fontFamilyFromFile(ov.font);
+        if (typeof ov.fontSize === 'number') text.style.fontSize = ov.fontSize;
+    } else {
+        if (ov.font) text.fontName = fontFamilyFromFile(ov.font);
+        if (typeof ov.fontSize === 'number') text.fontSize = ov.fontSize;
+    }
+}
+
+async function renderUiPreview() {
+    if (!uiPreviewApp || !uiPreviewContainer || !uiCurrentConfig) return;
+    uiPreviewContainer.removeChildren();
+
+    if (uiCurrentKey === 'health_mana_bar') {
+        await renderHealthManaPreview(uiCurrentConfig);
+    } else {
+        renderSkillBarPreview(uiCurrentConfig);
+    }
+}
+
+async function renderHealthManaPreview(cfg) {
+    const scale = cfg.scale || 1;
+    const panelW = 400 * scale;
+    const panelH = 80 * scale;
+    const pos = getAnchoredPosition(cfg.anchor, cfg.offsetX, cfg.offsetY, panelW, panelH);
+
+    const panelTex = await PIXI.Assets.load(`/assets/ui/${cfg.assets.panel}`);
+    const hpFillTex = await PIXI.Assets.load(`/assets/ui/${cfg.assets.hpFill}`);
+    const hpOverlayTex = await PIXI.Assets.load(`/assets/ui/${cfg.assets.hpOverlay}`);
+    const manaFillTex = await PIXI.Assets.load(`/assets/ui/${cfg.assets.manaFill}`);
+    const manaOverlayTex = await PIXI.Assets.load(`/assets/ui/${cfg.assets.manaOverlay}`);
+
+    await PIXI.Assets.load(`/assets/fonts/${cfg.fonts.name}`);
+    await PIXI.Assets.load(`/assets/fonts/${cfg.fonts.values}`);
+
+    const container = new PIXI.Container();
+    container.position.set(pos.x, pos.y);
+    container.scale.set(scale);
+    uiPreviewContainer.addChild(container);
+
+    const panel = new PIXI.Sprite(panelTex);
+    container.addChild(panel);
+    applySpriteOverride(panel, cfg, 'panel');
+
+    const barX = 20;
+    const hpY = 18;
+    const manaY = 46;
+    const barW = 360;
+    const barH = 20;
+
+    const hpMask = new PIXI.Graphics();
+    hpMask.position.set(barX, hpY);
+    hpMask.rect(0, 0, barW * (uiSamplePlayer.currentHp / uiSamplePlayer.maxHp), barH).fill(0xffffff);
+    hpMask.alpha = 0;
+
+    const hpFill = new PIXI.Sprite(hpFillTex);
+    hpFill.position.set(barX, hpY);
+    hpFill.mask = hpMask;
+    applySpriteOverride(hpFill, cfg, 'hpFill');
+    hpMask.position.set(hpFill.x, hpFill.y);
+    const hpFillW = hpFill.width || barW;
+    const hpFillH = hpFill.height || barH;
+    hpMask.clear();
+    hpMask.rect(0, 0, hpFillW * (uiSamplePlayer.currentHp / uiSamplePlayer.maxHp), hpFillH).fill(0xffffff);
+
+    const hpOverlay = new PIXI.Sprite(hpOverlayTex);
+    hpOverlay.position.set(barX, hpY);
+    applySpriteOverride(hpOverlay, cfg, 'hpOverlay');
+
+    const manaMask = new PIXI.Graphics();
+    manaMask.position.set(barX, manaY);
+    manaMask.rect(0, 0, barW * (uiSamplePlayer.currentMana / uiSamplePlayer.maxMana), barH).fill(0xffffff);
+    manaMask.alpha = 0;
+
+    const manaFill = new PIXI.Sprite(manaFillTex);
+    manaFill.position.set(barX, manaY);
+    manaFill.mask = manaMask;
+    applySpriteOverride(manaFill, cfg, 'manaFill');
+    manaMask.position.set(manaFill.x, manaFill.y);
+    const manaFillW = manaFill.width || barW;
+    const manaFillH = manaFill.height || barH;
+    manaMask.clear();
+    manaMask.rect(0, 0, manaFillW * (uiSamplePlayer.currentMana / uiSamplePlayer.maxMana), manaFillH).fill(0xffffff);
+
+    const manaOverlay = new PIXI.Sprite(manaOverlayTex);
+    manaOverlay.position.set(barX, manaY);
+    applySpriteOverride(manaOverlay, cfg, 'manaOverlay');
+
+    const nameText = new PIXI.BitmapText({
+        text: replacePlaceholders(cfg.text.name),
+        style: { fontFamily: fontFamilyFromFile(cfg.fonts.name), fontSize: 18 }
+    });
+    nameText.position.set(18, 4);
+    applyTextOverride(nameText, cfg, 'nameText');
+
+    const levelLabelText = new PIXI.BitmapText({
+        text: replacePlaceholders(cfg.text.levelLabel || 'LEVEL'),
+        style: { fontFamily: fontFamilyFromFile(cfg.fonts.name), fontSize: 18 }
+    });
+    levelLabelText.position.set(0, 4);
+    applyTextOverride(levelLabelText, cfg, 'levelLabelText');
+
+    const levelNumberText = new PIXI.BitmapText({
+        text: replacePlaceholders(cfg.text.levelNumber || '{player.level}'),
+        style: { fontFamily: fontFamilyFromFile(cfg.fonts.values), fontSize: 16 }
+    });
+    levelNumberText.position.set(0, 6);
+    applyTextOverride(levelNumberText, cfg, 'levelNumberText');
+
+    const rightMargin = 18;
+    const gap = 6;
+    levelNumberText.x = 400 - rightMargin - levelNumberText.width;
+    levelLabelText.x = levelNumberText.x - gap - levelLabelText.width;
+
+    const hpText = new PIXI.BitmapText({
+        text: replacePlaceholders(cfg.text.hp),
+        style: { fontFamily: fontFamilyFromFile(cfg.fonts.values), fontSize: 16 }
+    });
+    hpText.position.set(200 - hpText.width / 2, hpY + 2);
+    applyTextOverride(hpText, cfg, 'hpText');
+
+    const manaText = new PIXI.BitmapText({
+        text: replacePlaceholders(cfg.text.mana),
+        style: { fontFamily: fontFamilyFromFile(cfg.fonts.values), fontSize: 16 }
+    });
+    manaText.position.set(200 - manaText.width / 2, manaY + 2);
+    applyTextOverride(manaText, cfg, 'manaText');
+
+    container.addChild(hpFill, hpOverlay, hpMask, manaFill, manaOverlay, manaMask, nameText, levelLabelText, levelNumberText, hpText, manaText);
+}
+
+function renderSkillBarPreview(cfg) {
+    const scale = cfg.scale || 1;
+    const slotSize = cfg.slotSize || 54;
+    const barWidth = cfg.barWidth || 64;
+    const barHeight = cfg.barHeight || 6;
+    const totalW = Math.max(slotSize, barWidth) * scale;
+    const totalH = (slotSize + barHeight + 12) * scale;
+    const pos = getAnchoredPosition(cfg.anchor, cfg.offsetX, cfg.offsetY, totalW, totalH);
+
+    const container = new PIXI.Container();
+    container.position.set(pos.x, pos.y);
+    container.scale.set(scale);
+    uiPreviewContainer.addChild(container);
+
+    const half = slotSize / 2;
+    const barY = half + 8;
+    const slotColor = parseInt(cfg.colors.slot.replace('#', '0x'));
+    const cooldownColor = parseInt(cfg.colors.cooldown.replace('#', '0x'));
+    const chargeColor = parseInt(cfg.colors.charge.replace('#', '0x'));
+
+    const slotBg = new PIXI.Graphics()
+        .roundRect(-half, -half, slotSize, slotSize, 6)
+        .fill(slotColor)
+        .stroke({ width: 2, color: 0x111111, alpha: 0.9 });
+    applySpriteOverride(slotBg, cfg, 'slotBg');
+
+    const cooldownOverlay = new PIXI.Graphics();
+    cooldownOverlay
+        .rect(-half, 0, slotSize, slotSize / 2)
+        .fill(cooldownColor, 0.45);
+    applySpriteOverride(cooldownOverlay, cfg, 'cooldownOverlay');
+
+    const chargeBarBg = new PIXI.Graphics()
+        .rect(-barWidth / 2, barY, barWidth, barHeight)
+        .fill(0x1a1a1a);
+    applySpriteOverride(chargeBarBg, cfg, 'chargeBarBg');
+
+    const chargeBarFill = new PIXI.Graphics()
+        .rect(-barWidth / 2, barY, barWidth * 0.6, barHeight)
+        .fill(chargeColor);
+    applySpriteOverride(chargeBarFill, cfg, 'chargeBarFill');
+
+    const keyText = new PIXI.Text({
+        text: replacePlaceholders(cfg.keyText),
+        style: { fontFamily: 'Georgia', fontSize: 16, fill: 0xffffff, fontWeight: 'bold', stroke: { color: 0x000000, width: 2 } }
+    });
+    keyText.anchor.set(0.5);
+    keyText.position.set(0, -6);
+    applyTextOverride(keyText, cfg, 'keyText');
+
+    const labelText = new PIXI.Text({
+        text: replacePlaceholders(cfg.labelText),
+        style: { fontFamily: 'Arial', fontSize: 10, fill: 0xd8d8d8, stroke: { color: 0x000000, width: 2 } }
+    });
+    labelText.anchor.set(0.5);
+    labelText.position.set(0, 14);
+    applyTextOverride(labelText, cfg, 'labelText');
+
+    container.addChild(slotBg, cooldownOverlay, chargeBarBg, chargeBarFill, keyText, labelText);
 }
 
 // INIT

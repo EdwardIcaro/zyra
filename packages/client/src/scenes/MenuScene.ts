@@ -10,10 +10,17 @@ export class MenuScene extends Container {
   constructor(game: Game) {
     super();
     this.game = game;
-    this.createMenu();
+    this.initMenu();
   }
 
-  private createMenu() {
+  private async initMenu() {
+    const classes = await this.loadActiveClasses();
+    const firstClass = classes[0];
+    if (firstClass) this.selectedClass = firstClass.class_type;
+    this.createMenu(classes);
+  }
+
+  private createMenu(classes: Array<{ class_type: string; display_name?: string }>) {
     const width = window.innerWidth;
     const height = window.innerHeight;
 
@@ -41,8 +48,11 @@ export class MenuScene extends Container {
     const classY = height / 2;
     let classX = width / 2 - 300;
 
-    Object.entries(CLASSES).forEach(([key, config]) => {
-      const button = this.createClassButton(config.name, config.color, classX, classY, key);
+    classes.forEach((entry) => {
+      const config = (CLASSES as any)[entry.class_type];
+      const name = config?.name || entry.display_name || entry.class_type;
+      const color = config?.color || '#4a90e2';
+      const button = this.createClassButton(name, color, classX, classY, entry.class_type);
       this.addChild(button);
       classX += 150;
     });
@@ -111,5 +121,18 @@ export class MenuScene extends Container {
     container.on('pointerdown', onClick);
 
     return container;
+  }
+
+  private async loadActiveClasses(): Promise<Array<{ class_type: string; display_name?: string }>> {
+    try {
+      const res = await fetch('http://localhost:2567/api/classes');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) return data;
+      }
+    } catch (_e) {
+      // ignore
+    }
+    return Object.keys(CLASSES).map(key => ({ class_type: key, display_name: (CLASSES as any)[key]?.name }));
   }
 }

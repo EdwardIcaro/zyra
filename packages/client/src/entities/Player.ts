@@ -34,6 +34,10 @@ export class Player extends Container {
   private lerpSpeed: number = 0.15;
   private animationTicker: number = 0;
   private facingDirection: number = 1;
+  private lastServerX: number;
+  private lastRenderX: number;
+  private equipmentListenerBound = false;
+  private mirrorModes = new Map<Sprite, { mode: string; scale: number }>();
 
   // Cache da configuração global
   private static globalLayersConfig: LayerConfig[] | null = null;
@@ -45,6 +49,7 @@ private updateEquipmentVisuals() {
     this.layerSprites.forEach((sprite, key) => {
         if (key !== 'bodies') {  // Preservar corpo
             this.visualContainer.removeChild(sprite);
+            this.mirrorModes.delete(sprite);
             sprite.destroy();
             this.layerSprites.delete(key);
         }
@@ -68,7 +73,8 @@ private updateEquipmentVisuals() {
 }
 
 private async renderEquipmentLayer(layer: any, slot: string) {
-    const path = `/assets/sprites/${layer.type}/${layer.asset}.png`;
+    const type = layer.type === 'faces' ? 'eyes' : layer.type;
+    const path = `/assets/sprites/${type}/${layer.asset}.png`;
 
     try {
         const texture = await PIXI.Assets.load(path);
@@ -76,9 +82,18 @@ private async renderEquipmentLayer(layer: any, slot: string) {
         sprite.anchor.set(0.5);
         sprite.x = layer.offsetX || 0;
         sprite.y = layer.offsetY || 0;
-        sprite.scale.set(layer.scale || 1.0);
+        const scale = layer.scale || 1.0;
+        sprite.scale.set(scale);
         sprite.rotation = ((layer.rotation || 0) * Math.PI) / 180;
         sprite.zIndex = layer.zIndex || 2;
+        if (typeof layer.width === 'number' && typeof layer.height === 'number') {
+            sprite.width = layer.width * scale;
+            sprite.height = layer.height * scale;
+        }
+
+        const mirrorMode = layer.mirrorMode || 'mirror';
+        this.mirrorModes.set(sprite, { mode: mirrorMode, scale });
+        this.applyMirrorModes();
 
         // Aplicar tints
         if (layer.colorTint && layer.colorTint.startsWith('#')) {
@@ -95,6 +110,8 @@ private async renderEquipmentLayer(layer: any, slot: string) {
   constructor(state: PlayerState, isLocalPlayer: boolean) {
     super();
     this.state = state;
+    this.lastServerX = state.x;
+    this.lastRenderX = state.x;
     
     this.targetX = state.x;
     this.targetY = state.y;
@@ -146,16 +163,19 @@ private async renderEquipmentLayer(layer: any, slot: string) {
 
     // Listeners de mudança
     this.state.onChange(() => {
+      if (this.state.x < this.lastServerX) this.facingDirection = -1;
+      else if (this.state.x > this.lastServerX) this.facingDirection = 1;
+      this.lastServerX = this.state.x;
+
       this.targetX = this.state.x;
       this.targetY = this.state.y;
-      
-      if (this.state.x < this.position.x) this.facingDirection = -1;
-      else if (this.state.x > this.position.x) this.facingDirection = 1;
-
-          // Listener para mudanças no equipamento
-      this.state.equipment.equipped.onChange(() => {
-        this.updateEquipmentVisuals();
-      });
+      if (!this.equipmentListenerBound) {
+        // Listener for equipment changes
+        this.state.equipment.equipped.onChange(() => {
+          this.updateEquipmentVisuals();
+        });
+        this.equipmentListenerBound = true;
+      }
 
       
       this.updateEquipmentVisuals();
@@ -172,7 +192,7 @@ private async renderEquipmentLayer(layer: any, slot: string) {
     // Carregar config global se ainda não foi carregada
     if (!Player.globalLayersConfig) {
       try {
-        const res = await fetch('http://localhost:2567/api/admin/visual/global-layers');
+        const res = await fetch('http://localhost:2567/api/visual/global-layers');
         if (res.ok) {
           const data = await res.json();
           Player.globalLayersConfig = data.layers || [];
@@ -208,7 +228,8 @@ private async renderEquipmentLayer(layer: any, slot: string) {
    * Renderizar uma camada individual
    */
   private async renderLayer(layer: LayerConfig) {
-    const path = `/assets/sprites/${layer.type}/${layer.asset}.png`;
+    const type = layer.type === 'faces' ? 'eyes' : layer.type;
+    const path = `/assets/sprites/${type}/${layer.asset}.png`;
 
     try {
       const texture = await PIXI.Assets.load(path);
@@ -216,11 +237,16 @@ private async renderEquipmentLayer(layer: any, slot: string) {
       sprite.anchor.set(0.5);
       sprite.x = layer.offsetX;
       sprite.y = layer.offsetY;
-      sprite.scale.set(layer.scale);
+      const scale = layer.scale || 1.0;
+      sprite.scale.set(scale);
       sprite.rotation = (layer.rotation * Math.PI) / 180;
-      sprite.width = layer.width * layer.scale;
-      sprite.height = layer.height * layer.scale;
+      sprite.width = layer.width * scale;
+      sprite.height = layer.height * scale;
       sprite.zIndex = layer.zIndex;
+
+      const mirrorMode = (layer as any).mirrorMode || 'mirror';
+      this.mirrorModes.set(sprite, { mode: mirrorMode, scale });
+      this.applyMirrorModes();
 
       this.visualContainer.addChild(sprite);
       this.layerSprites.set(layer.type, sprite);
@@ -303,6 +329,11 @@ private async renderEquipmentLayer(layer: any, slot: string) {
     // Movimento suave
     this.x += (this.targetX - this.x) * this.lerpSpeed;
     this.y += (this.targetY - this.y) * this.lerpSpeed;
+    const renderDeltaX = this.x - this.lastRenderX;
+    if (Math.abs(renderDeltaX) > 0.05) {
+      this.facingDirection = renderDeltaX > 0 ? -1 : 1;
+    }
+    this.lastRenderX = this.x;
 
     // Animação de respiração
     this.animationTicker += 0.1 * deltaTime;
@@ -315,5 +346,19 @@ private async renderEquipmentLayer(layer: any, slot: string) {
       this.highlight.scale.x = 1 - bounce;
       this.highlight.scale.y = 1 + bounce;
     }
+
+    this.applyMirrorModes();
+  }
+
+  private applyMirrorModes() {
+    const facingLeft = this.facingDirection === -1;
+    this.mirrorModes.forEach((meta, sprite) => {
+      const mag = Math.abs(sprite.scale.x) || meta.scale || 1;
+      if (meta.mode === 'swap') {
+        sprite.scale.x = facingLeft ? -mag : mag;
+      } else {
+        sprite.scale.x = mag;
+      }
+    });
   }
 }

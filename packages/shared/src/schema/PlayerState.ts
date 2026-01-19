@@ -11,6 +11,8 @@ export class PlayerState extends Schema {
   @type('string') playerId!: string;
   @type('string') username!: string;
   @type('string') classType!: ClassType;
+  @type('number') characterId: number = 0;
+  @type('string') targetId: string = '';
   
   // ==================== VISUAL SYSTEM (Nova Arquitetura) ====================
   @type('number') eyeTypeId: number = 1; // Referência ao VisualConfig tipo EYE

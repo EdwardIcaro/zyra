@@ -40,7 +40,8 @@ export class NetworkManager {
     charName: string, 
     classType: string, 
     isNew: boolean = false, 
-    dbId?: number
+    dbId?: number,
+    customization?: { bodyColor?: string; eyeColor?: string }
   ): Promise<Room<CombatRoomState>> {
     try {
       // Enviamos os metadados para o servidor processar no onJoin
@@ -48,7 +49,8 @@ export class NetworkManager {
         charName,
         classType,
         isNew,
-        dbId
+        dbId,
+        ...(customization || {})
       });
 
       this.currentRoom = room;
@@ -85,6 +87,15 @@ export class NetworkManager {
   sendAttack(targetX: number, targetY: number) {
     if (this.currentRoom && this.currentRoom.connection.isOpen) {
       this.currentRoom.send('attack', { targetX, targetY });
+    }
+  }
+
+  /**
+   * Define/limpa alvo selecionado
+   */
+  sendTarget(targetId: string | null) {
+    if (this.currentRoom && this.currentRoom.connection.isOpen) {
+      this.currentRoom.send('target', { targetId });
     }
   }
 

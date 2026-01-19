@@ -21,6 +21,7 @@ Priorities: stability, performance on client, authoritative validation on server
 ## Safety & Style Rules
 - **Preservation First**: Always prefer minimal changes. Explain why each line is added/removed.
 - **Pre-Scan Requirement**: Before editing, describe current state of affected files (functions, variables, logic).
+- **File Creation/Deletion Rule**: If any change requires creating new files or deleting existing ones, ALWAYS ask for explicit confirmation BEFORE proceeding. Do NOT create or delete anything without user approval.
 - **Common Pitfalls to Avoid**: Hallucinating old code versions — base all suggestions on real filesystem content.
 - **Testing**: After every change, suggest exact test steps (e.g., "Equip item → check F5 persistence").
 - **Balance Philosophy**: Casual: 5–10 min sessions = visible progress. Hardcore: long sessions = multipliers, rare drops.

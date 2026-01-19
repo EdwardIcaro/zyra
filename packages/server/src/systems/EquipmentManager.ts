@@ -4,6 +4,7 @@ import {
   canEquip, 
   ItemRegistry // ✅ ADICIONAR este import
 } from '@zyra/shared';
+import { BuffTemplateRegistry } from './BuffTemplateRegistry';
 
 export class EquipmentManager {
   equipFromInventory(player: PlayerState, inventorySlotIndex: number): boolean {
@@ -190,6 +191,27 @@ export class EquipmentManager {
       if (stats.critDamage) player.critDamage += stats.critDamage;
       if (stats.attackSpeed) player.attackSpeed += stats.attackSpeed;
       if (stats.moveSpeed) player.moveSpeed += stats.moveSpeed;
+    });
+
+    // Aplicar bÃ´nus/debuffs ativos
+    const applyBonus = (current: number, bonus: number, stacks: number) => {
+      const total = bonus * stacks;
+      if (Math.abs(total) <= 5) return current + total;
+      return current * (1 + total / 100);
+    };
+
+    player.buffs.forEach((buff) => {
+      const template = BuffTemplateRegistry.get(buff.buffId);
+      if (!template?.effects) return;
+
+      const stacks = buff.stacks || 1;
+      const effects = template.effects;
+      if (typeof effects.hpBonus === 'number') player.maxHp = applyBonus(player.maxHp, effects.hpBonus, stacks);
+      if (typeof effects.damageBonus === 'number') player.damage = applyBonus(player.damage, effects.damageBonus, stacks);
+      if (typeof effects.defenseBonus === 'number') player.defense = applyBonus(player.defense, effects.defenseBonus, stacks);
+      if (typeof effects.speedBonus === 'number') player.moveSpeed = applyBonus(player.moveSpeed, effects.speedBonus, stacks);
+      if (typeof effects.attackSpeedBonus === 'number') player.attackSpeed = applyBonus(player.attackSpeed, effects.attackSpeedBonus, stacks);
+      if (typeof effects.critChanceBonus === 'number') player.critChance = applyBonus(player.critChance, effects.critChanceBonus, stacks);
     });
 
     // Garantir que HP/Mana não ultrapassem
