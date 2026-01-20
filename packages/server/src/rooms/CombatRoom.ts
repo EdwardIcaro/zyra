@@ -68,9 +68,50 @@ export class CombatRoom extends Room<ZoneRoomState> {
     }
 
     // --- MENSAGENS DE INVENTÁRIO & EQUIPAMENTO ---
-    this.onMessage('inventory:move', (client, data: { from: number; to: number }) => {
+    this.onMessage('inventory:move', async (client, data: { from: number; to: number }) => {
       const player = this.state.players.get(client.sessionId);
-      if (player) this.inventoryManager.moveItem(player, data.from, data.to);
+      if (!player) return;
+      const moved = this.inventoryManager.moveItem(player, data.from, data.to);
+      if (!moved) return;
+      const charId = player.characterId;
+      if (!charId) return;
+
+      try {
+        const fromRes = await db.query(
+          'SELECT id FROM items WHERE player_id = $1 AND slot_position = $2',
+          [charId, data.from]
+        );
+        if (fromRes.rows.length === 0) return;
+
+        const toRes = await db.query(
+          'SELECT id FROM items WHERE player_id = $1 AND slot_position = $2',
+          [charId, data.to]
+        );
+
+        if (toRes.rows.length === 0) {
+          await db.query(
+            'UPDATE items SET slot_position = $1 WHERE player_id = $2 AND slot_position = $3',
+            [data.to, charId, data.from]
+          );
+          return;
+        }
+
+        const tempSlot = -1;
+        await db.query(
+          'UPDATE items SET slot_position = $1 WHERE player_id = $2 AND slot_position = $3',
+          [tempSlot, charId, data.from]
+        );
+        await db.query(
+          'UPDATE items SET slot_position = $1 WHERE player_id = $2 AND slot_position = $3',
+          [data.from, charId, data.to]
+        );
+        await db.query(
+          'UPDATE items SET slot_position = $1 WHERE player_id = $2 AND slot_position = $3',
+          [data.to, charId, tempSlot]
+        );
+      } catch (err: any) {
+        console.error('[Inventory] Error moving item:', err?.message || err);
+      }
     });
 
     this.onMessage('equipment:equip', async (client, data: { inventorySlot: number }) => {
@@ -128,16 +169,25 @@ export class CombatRoom extends Room<ZoneRoomState> {
         if (!success) return;
 
         await db.query('DELETE FROM character_equipment WHERE player_id = $1 AND slot = $2', [charId, data.equipmentSlot]);
-        await db.query(
+        const maxSlots = Number.isFinite(player.inventory.maxSlots) ? player.inventory.maxSlots : 40;
+        const maxSlotIndex = Math.max(0, Math.floor(maxSlots) - 1);
+        const slotRes = await db.query(
           `
-            INSERT INTO items (player_id, item_id, quantity, slot_position, is_equipped)
-            VALUES ($1, $2, 1, (
-              SELECT COALESCE(MAX(slot_position), -1) + 1
-              FROM items WHERE player_id = $1
-            ), false)
+            SELECT s.pos FROM generate_series(0, $2) s(pos)
+            WHERE s.pos NOT IN (SELECT slot_position FROM items WHERE player_id = $1)
+            ORDER BY s.pos
+            LIMIT 1
           `,
-          [charId, itemId]
+          [charId, maxSlotIndex]
         );
+        const slotPos = slotRes.rows[0]?.pos;
+        if (slotPos === undefined || slotPos === null) return;
+
+        await db.query(
+          `INSERT INTO items (player_id, item_id, quantity, slot_position, is_equipped) VALUES ($1, $2, 1, $3, false)`,
+          [charId, itemId, slotPos]
+        );
+        await this.syncInventoryFromDB(charId, player);
       } catch (err: any) {
         console.error('[Unequip] Error:', err.message);
       }
@@ -302,25 +352,55 @@ export class CombatRoom extends Room<ZoneRoomState> {
       const charId = charRes.rows[0].id;
 
       const canAdd = this.inventoryManager.addItem(player, drop.itemId, drop.quantity);
-      if (canAdd) {
-        this.state.droppedItems.delete(dropId);
-
-        await db.query(`
-          INSERT INTO items (player_id, item_id, quantity, slot_position, is_equipped)
-          VALUES ($1, $2, $3, (
-            SELECT s.pos FROM generate_series(0, 31) s(pos)
-            WHERE s.pos NOT IN (SELECT slot_position FROM items WHERE player_id = $1)
-            LIMIT 1
-          ), false)
-          ON CONFLICT (player_id, item_id, slot_position) 
-          DO UPDATE SET quantity = items.quantity + EXCLUDED.quantity;
-        `, [charId, drop.itemId, drop.quantity]);
-
-        await this.syncInventoryFromDB(charId, player);
-        console.log(`✅ [Pickup] ${player.username} coletou ${drop.itemId}`);
+      if (!canAdd) return;
+      
+      const template = ItemRegistry.getTemplate(drop.itemId);
+      const isStackable = template?.stackable === true;
+      const maxSlots = Number.isFinite(player.inventory.maxSlots) ? player.inventory.maxSlots : 40;
+      const maxSlotIndex = Math.max(0, Math.floor(maxSlots) - 1);
+      
+      if (isStackable) {
+        const existingRes = await db.query(
+          'SELECT id FROM items WHERE player_id = $1 AND item_id = $2 ORDER BY slot_position ASC LIMIT 1',
+          [charId, drop.itemId]
+        );
+        if (existingRes.rows.length > 0) {
+          await db.query('UPDATE items SET quantity = quantity + $1 WHERE id = $2', [
+            drop.quantity,
+            existingRes.rows[0].id
+          ]);
+          this.state.droppedItems.delete(dropId);
+          await this.syncInventoryFromDB(charId, player);
+          console.log(`[Pickup] ${player.username} collected ${drop.itemId}`);
+          return;
+        }
       }
+      
+      const slotRes = await db.query(
+        `
+          SELECT s.pos FROM generate_series(0, $2) s(pos)
+          WHERE s.pos NOT IN (SELECT slot_position FROM items WHERE player_id = $1)
+          ORDER BY s.pos
+          LIMIT 1
+        `,
+        [charId, maxSlotIndex]
+      );
+      const slotPos = slotRes.rows[0]?.pos;
+      if (slotPos === undefined || slotPos === null) {
+        await this.syncInventoryFromDB(charId, player);
+        return;
+      }
+      
+      await db.query(
+        `INSERT INTO items (player_id, item_id, quantity, slot_position, is_equipped) VALUES ($1, $2, $3, $4, false)`,
+        [charId, drop.itemId, drop.quantity, slotPos]
+      );
+      
+      this.state.droppedItems.delete(dropId);
+      await this.syncInventoryFromDB(charId, player);
+      console.log(`[Pickup] ${player.username} collected ${drop.itemId}`);
     } catch (err: any) {
-      console.error("❌ Erro no Pickup:", err.message);
+      console.error('[Pickup] Error:', err.message);
     } finally {
       this.processingPickups.delete(dropId);
     }
@@ -492,6 +572,9 @@ export class CombatRoom extends Room<ZoneRoomState> {
 
   private async syncInventoryFromDB(charId: number, state: PlayerState) {
     try {
+      const invRes = await db.query('SELECT max_slots FROM inventory WHERE player_id = $1', [charId]);
+      const maxSlots = invRes.rows[0]?.max_slots;
+      if (Number.isFinite(maxSlots)) state.inventory.maxSlots = maxSlots;
       const itemsRes = await db.query('SELECT * FROM items WHERE player_id = $1', [charId]);
       state.inventory.slots.clear();
 
@@ -508,14 +591,14 @@ export class CombatRoom extends Room<ZoneRoomState> {
           // ✅ NOVO: Verificar se o item existe no registry
           const template = ItemRegistry.getTemplate(row.item_id);
           if (!template) {
-            console.warn(`⚠️ [CombatRoom] Item ${row.item_id} não encontrado no registry!`);
-            } else if (template.isEquipable) {
-            console.log(`   ✓ Item equipável: ${row.item_id} → slot: ${template.equipSlot}`);
-}
+            console.warn(`[CombatRoom] Item ${row.item_id} not found in registry`);
+          } else if (template.isEquipable) {
+            console.log(`[CombatRoom] Equipable item: ${row.item_id} -> slot: ${template.equipSlot}`);
+          }
 }
         });
     } catch (e: any) {
-      console.error("❌ Erro SyncDB:", e.message);
+      console.error('[CombatRoom] SyncDB error:', e.message);
     }
   }
 

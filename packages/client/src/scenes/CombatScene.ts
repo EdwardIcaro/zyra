@@ -187,6 +187,9 @@ export class CombatScene extends Container {
     this.inventoryUI.onItemDoubleClick = (index: number) => {
         room.send('equipment:equip', { inventorySlot: index });
     };
+    this.inventoryUI.onItemMove = (from: number, to: number) => {
+        room.send('inventory:move', { from, to });
+    };
     this.inventoryUI.onEquipmentClick = (slotName: string) => {
         room.send('equipment:unequip', { equipmentSlot: slotName });
     };

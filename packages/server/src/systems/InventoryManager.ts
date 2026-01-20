@@ -1,4 +1,4 @@
-import { PlayerState, InventorySlot } from '@zyra/shared';
+import { PlayerState, InventorySlot, ItemRegistry } from '@zyra/shared';
 
 export class InventoryManager {
   /**
@@ -11,13 +11,15 @@ export class InventoryManager {
       return true;
     }
 
-    // Verificar se item é stackable e já existe
-    const existingSlot = this.findItemSlot(player, itemId);
-    
-    if (existingSlot) {
-      // Item já existe, aumentar quantidade
-      existingSlot.quantity += quantity;
-      return true;
+    const template = ItemRegistry.getTemplate(itemId);
+    const isStackable = template?.stackable === true;
+
+    if (isStackable) {
+      const existingSlot = this.findItemSlot(player, itemId);
+      if (existingSlot) {
+        existingSlot.quantity += quantity;
+        return true;
+      }
     }
 
     // Procurar slot vazio

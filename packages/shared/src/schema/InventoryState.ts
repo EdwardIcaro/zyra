@@ -9,5 +9,5 @@ export class InventorySlot extends Schema {
 
 export class InventoryState extends Schema {
   @type({ map: InventorySlot }) slots = new MapSchema<InventorySlot>();
-  @type('number') maxSlots: number = 40; // 5x8 grid
+  @type('number') maxSlots: number = 50; // 5x10 grid
 }

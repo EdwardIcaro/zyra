@@ -4,6 +4,7 @@ import type { InventoryState, EquipmentState, InventorySlot, } from '@zyra/share
 
 export type SlotCallback = (index: number) => void;
 export type EquipmentCallback = (slotName: string) => void;
+export type SlotMoveCallback = (fromIndex: number, toIndex: number) => void;
 // Definição para a Tooltip
 export type HoverCallback = (itemId: string, x: number, y: number) => void;
 
@@ -15,6 +16,11 @@ export class InventoryUI extends Container {
     private inventoryGrid: Container;
     private slotContainers: Container[] = [];
     private equipmentSlots: Map<string, Container> = new Map();
+
+    private dragFromIndex: number | null = null;
+    private dragStartX = 0;
+    private dragStartY = 0;
+    private dragDistance = 0;
     
     private lastClickTime = 0;
     private lastInvData?: InventoryState;
@@ -22,6 +28,7 @@ export class InventoryUI extends Container {
     // Callbacks de Ação
     public onItemDoubleClick?: SlotCallback;
     public onEquipmentClick?: EquipmentCallback;
+    public onItemMove?: SlotMoveCallback;
     
     // Callbacks de Tooltip (Resolvendo erro de "Property does not exist")
     public onItemHover?: HoverCallback;
@@ -109,8 +116,11 @@ export class InventoryUI extends Container {
             const col = i % this.GRID_COLS;
             const slot = this.createSlotVisual(col * 55, row * 55, '');
             
-            // Eventos de clique
-            slot.on('pointerdown', () => this.handleInventoryClick(i));
+            // Eventos de clique/drag
+            slot.on('pointerdown', (e) => this.handleInventoryPointerDown(i, e));
+            slot.on('pointerup', (e) => this.handleInventoryPointerUp(i, e));
+            slot.on('pointerupoutside', () => this.resetDrag());
+            slot.on('pointermove', (e) => this.handleInventoryPointerMove(e));
             
             // Eventos de Tooltip
             slot.on('pointerover', (e) => {
@@ -146,6 +156,41 @@ export class InventoryUI extends Container {
         cnt.cursor = 'pointer';
         return cnt;
     }
+
+
+private handleInventoryPointerDown(index: number, e: any) {
+    const item = this.lastInvData?.slots.get(index.toString());
+    if (item) {
+        this.dragFromIndex = index;
+        this.dragStartX = e.global.x;
+        this.dragStartY = e.global.y;
+        this.dragDistance = 0;
+    }
+    this.handleInventoryClick(index);
+}
+
+private handleInventoryPointerMove(e: any) {
+    if (this.dragFromIndex === null) return;
+    const dx = e.global.x - this.dragStartX;
+    const dy = e.global.y - this.dragStartY;
+    const dist = Math.hypot(dx, dy);
+    if (dist > this.dragDistance) this.dragDistance = dist;
+}
+
+private handleInventoryPointerUp(index: number, _e: any) {
+    if (this.dragFromIndex === null) return;
+    const from = this.dragFromIndex;
+    const moved = this.dragDistance > 6;
+    this.resetDrag();
+    if (moved && from !== index && this.onItemMove) {
+        this.onItemMove(from, index);
+    }
+}
+
+private resetDrag() {
+    this.dragFromIndex = null;
+    this.dragDistance = 0;
+}
 
 private handleInventoryClick(index: number) {
     const now = Date.now();
@@ -199,10 +244,12 @@ private showMessage(text: string) {
         this.goldText.text = `Gold: ${gold.toLocaleString()}`;
 
         // Atualizar Inventário
+        this.slotContainers.forEach((container) => {
+            if (container.children.length > 2) container.removeChildren(2);
+        });
         inv.slots.forEach((slot: InventorySlot) => {
             const container = this.slotContainers[slot.slotIndex];
             if (container) {
-                if (container.children.length > 2) container.removeChildren(2);
                 this.renderIconInSlot(container, slot.itemId, slot.quantity);
             }
         });
