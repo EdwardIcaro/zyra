@@ -127,6 +127,8 @@ model MonsterTemplate {
   type          String?       @db.VarChar(20)
   appearance    Json?
   stats         Json?
+  aggroType     String?       @default("aggressive") @map("aggro_type") @db.VarChar(20)
+  scale         Float?        @default(1.0)
   attackSpeed   Float?        @map("attack_speed")
   defense       Int?          @default(0)
   behavior      Json?

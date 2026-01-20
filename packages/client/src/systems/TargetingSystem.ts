@@ -1,4 +1,4 @@
-import { Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import type { MonsterEntity } from '../entities/Monster';
 
 type TargetPickResult = { monster: MonsterEntity; changed: boolean };
@@ -7,14 +7,18 @@ type TargetChangeHandler = (targetId: string | null, target: MonsterEntity | nul
 export class TargetingSystem {
   private selectedTargetId: string | null = null;
   private selectedTarget: MonsterEntity | null = null;
-  private indicator: Graphics;
+  private indicator: Container;
+  private indicatorVisual: Sprite | Graphics | null = null;
+  private indicatorSpriteKey = '';
+  private alphaMaskCache = new Map<string, { width: number; height: number; data: Uint8ClampedArray }>();
   private pulseTime = 0;
   private attackFlashUntil = 0;
   private indicatorColor = 0;
+  private indicatorScale = 0;
   onTargetChanged?: TargetChangeHandler;
 
   constructor() {
-    this.indicator = new Graphics();
+    this.indicator = new Container();
     this.indicator.visible = false;
   }
 
@@ -32,11 +36,40 @@ export class TargetingSystem {
     for (const [id, monster] of monsters.entries()) {
       const dx = monster.x - worldX;
       const dy = monster.y - worldY;
-      const dist = Math.hypot(dx, dy);
-      const radius = 26;
+      const state = monster.getState();
+      const sandboxScale = Math.max(0.01, state.sandboxScale || 1);
+      const scale = Math.max(0.01, (state.scale || 1) * sandboxScale);
+      const texture = monster.getSelectionTexture();
 
-      if (dist <= radius && (!closest || dist < closest.dist)) {
-        closest = { id, monster, dist };
+      if (texture) {
+        const baseSize = monster.getSelectionBaseSize();
+        const halfW = (baseSize.width * scale) / 2;
+        const halfH = (baseSize.height * scale) / 2;
+
+        if (Math.abs(dx) > halfW || Math.abs(dy) > halfH) continue;
+
+        const localX = dx / scale + baseSize.width / 2;
+        const localY = dy / scale + baseSize.height / 2;
+
+        const mask = this.getAlphaMask(texture);
+        if (mask) {
+          const ix = Math.floor(localX);
+          const iy = Math.floor(localY);
+          if (ix < 0 || iy < 0 || ix >= mask.width || iy >= mask.height) continue;
+          const alpha = mask.data[(iy * mask.width + ix) * 4 + 3] ?? 0;
+          if (alpha < 10) continue;
+        }
+
+        const dist = Math.hypot(dx, dy);
+        if (!closest || dist < closest.dist) {
+          closest = { id, monster, dist };
+        }
+      } else {
+        const radius = monster.getSelectionBaseRadius() * scale;
+        const dist = Math.hypot(dx, dy);
+        if (dist <= radius && (!closest || dist < closest.dist)) {
+          closest = { id, monster, dist };
+        }
       }
     }
 
@@ -73,7 +106,7 @@ export class TargetingSystem {
     if (this.indicator.parent) this.indicator.parent.removeChild(this.indicator);
     this.indicator.visible = true;
     this.indicator.position.set(0, 0);
-    monster.addChild(this.indicator);
+    monster.addChildAt(this.indicator, 0);
   }
 
   private detachIndicator() {
@@ -100,19 +133,94 @@ export class TargetingSystem {
     if (!this.selectedTarget) return;
 
     const state = this.selectedTarget.getState();
-    const isUnderAttack = Date.now() < this.attackFlashUntil;
-    const color = isUnderAttack ? 0xff3333 : this.getColorForType(state.type);
+    const color = 0xffff00;
+    const sandboxScale = Math.max(0.01, state.sandboxScale || 1);
+    const scale = Math.max(0.01, (state.scale || 1) * sandboxScale);
+    const spriteKey = state.spriteFilename || '';
+    const needsRebuild = this.indicatorSpriteKey !== spriteKey || !this.indicatorVisual;
 
-    if (color === this.indicatorColor) return;
+    if (!needsRebuild && color === this.indicatorColor && Math.abs(scale - this.indicatorScale) < 0.001) return;
 
     this.indicatorColor = color;
-    this.indicator.clear();
-    this.indicator
-      .circle(0, 0, 30)
-      .stroke({ width: 4, color, alpha: 0.9 });
-    this.indicator
-      .circle(0, 0, 36)
-      .stroke({ width: 2, color, alpha: 0.4 });
+    this.indicatorScale = scale;
+
+    if (needsRebuild) {
+      this.buildIndicatorVisual(this.selectedTarget, spriteKey);
+    }
+
+    if (!this.indicatorVisual) return;
+
+    if (this.indicatorVisual instanceof Sprite) {
+      this.indicatorVisual.tint = color;
+      this.indicatorVisual.scale.set(scale);
+    } else {
+      const radius = this.selectedTarget.getSelectionBaseRadius() * scale;
+      this.indicatorVisual.clear();
+      this.indicatorVisual
+        .circle(0, 0, radius)
+        .fill({ color, alpha: 0.25 })
+        .stroke({ width: 2, color, alpha: 0.6 });
+    }
+  }
+
+  private buildIndicatorVisual(monster: MonsterEntity, spriteKey: string) {
+    this.indicator.removeChildren();
+    this.indicatorVisual = null;
+    this.indicatorSpriteKey = spriteKey;
+
+    const texture = monster.getSelectionTexture();
+    if (texture) {
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(0.5);
+      sprite.alpha = 0.45;
+      sprite.zIndex = 0;
+      this.indicatorVisual = sprite;
+      this.indicator.addChild(sprite);
+    } else {
+      const circle = new Graphics();
+      circle.zIndex = 0;
+      this.indicatorVisual = circle;
+      this.indicator.addChild(circle);
+    }
+  }
+
+  private getAlphaMask(texture: Sprite['texture']) {
+    const baseTexture = texture.baseTexture;
+    const key = String(
+      (baseTexture as any).cacheId ??
+      (baseTexture as any).uid ??
+      baseTexture.label ??
+      baseTexture.resource?.url ??
+      ''
+    );
+
+    if (!key) return null;
+    const cached = this.alphaMaskCache.get(key);
+    if (cached) return cached;
+
+    const source = (baseTexture.resource as any)?.source;
+    if (!source) return null;
+
+    const width = texture.width || source.width || 0;
+    const height = texture.height || source.height || 0;
+    if (width <= 0 || height <= 0) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    try {
+      ctx.drawImage(source, 0, 0, width, height);
+    } catch {
+      return null;
+    }
+
+    const data = ctx.getImageData(0, 0, width, height).data;
+    const mask = { width, height, data };
+    this.alphaMaskCache.set(key, mask);
+    return mask;
   }
 
   private getColorForType(type: string): number {

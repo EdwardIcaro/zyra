@@ -27,6 +27,7 @@ app.use('/admin', express.static('public/admin.html'));
 app.use('/api/admin', adminUsersRouter);
 app.use('/assets/ui', express.static(path.join(__dirname, '../../client/public/assets/ui')));
 app.use('/assets/fonts', express.static(path.join(__dirname, '../../client/public/assets/fonts')));
+app.use('/assets/monsters', express.static(path.join(__dirname, '../../client/public/assets/monsters')));
 
 app.get('/dashboard', (req, res) => {
     const adminPath = path.join(__dirname, '../public/admin.html');
@@ -41,7 +42,39 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.get('/api/admin/monsters', async (req: Request, res: Response): Promise<void> => {
     try {
         const result = await pool.query('SELECT * FROM monster_templates ORDER BY level ASC');
-        res.json(result.rows);
+        const rows = result.rows.map(row => {
+            const normalized = { ...row };
+            try {
+                if (typeof normalized.appearance === 'string') {
+                    normalized.appearance = JSON.parse(normalized.appearance);
+                }
+            } catch {
+                normalized.appearance = {};
+            }
+            try {
+                if (typeof normalized.stats === 'string') {
+                    normalized.stats = JSON.parse(normalized.stats);
+                }
+            } catch {
+                normalized.stats = {};
+            }
+            try {
+                if (typeof normalized.behavior === 'string') {
+                    normalized.behavior = JSON.parse(normalized.behavior);
+                }
+            } catch {
+                normalized.behavior = {};
+            }
+            try {
+                if (typeof normalized.rewards === 'string') {
+                    normalized.rewards = JSON.parse(normalized.rewards);
+                }
+            } catch {
+                normalized.rewards = {};
+            }
+            return normalized;
+        });
+        res.json(rows);
     } catch (err) {
         console.error('[Admin] Error loading monsters:', err);
         res.status(500).json({ error: 'Failed to load monsters' });
@@ -70,25 +103,55 @@ app.get('/api/admin/assets/:folder', (req: Request, res: Response): void => {
     const { folder } = req.params;
     let publicPath: string;
     let allowedExts = ['.png', '.jpg', '.jpeg'];
+    const normalizePath = (p: string) => p.replace(/\\/g, '/');
 
     if (folder === 'ui' || folder === 'fonts') {
         publicPath = path.join(__dirname, '../../client/public/assets', folder);
         if (folder === 'fonts') {
             allowedExts = ['.fnt'];
         }
+    } else if (folder === 'monsters') {
+        publicPath = path.join(__dirname, '../../client/public/assets/monsters');
+        allowedExts = ['.png'];
     } else {
         publicPath = path.join(__dirname, '../../client/public/assets/sprites', folder);
     }
 
     if (!fs.existsSync(publicPath)) {
-        res.status(404).json({ error: 'Pasta não encontrada' });
+        res.status(404).json({ error: 'Pasta n??o encontrada' });
+        return;
+    }
+
+    if (folder === 'monsters') {
+        const walk = (dir: string, base: string, acc: string[]) => {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            entries.forEach(entry => {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    walk(full, base, acc);
+                } else {
+                    const ext = path.extname(entry.name).toLowerCase();
+                    if (allowedExts.includes(ext)) {
+                        acc.push(normalizePath(path.relative(base, full)));
+                    }
+                }
+            });
+        };
+        try {
+            const files: string[] = [];
+            walk(publicPath, publicPath, files);
+            res.json(files);
+        } catch (err) {
+            console.error('[Admin] Error reading directory:', err);
+            res.status(500).json({ error: 'Erro ao ler diret??rio' });
+        }
         return;
     }
 
     fs.readdir(publicPath, (err, files) => {
         if (err) {
             console.error('[Admin] Error reading directory:', err);
-            res.status(500).json({ error: 'Erro ao ler diretório' });
+            res.status(500).json({ error: 'Erro ao ler diret??rio' });
             return;
         }
         
@@ -224,11 +287,11 @@ app.get('/api/admin/tileset', async (_req: Request, res: Response): Promise<void
 
 // Salvar/Atualizar Monstro
 app.post('/api/admin/monsters/save', async (req: Request, res: Response): Promise<void> => {
-    const { id, name, level, type, stats, behavior, rewards, appearance, attackSpeed, defense } = req.body;
+    const { id, name, level, type, stats, behavior, rewards, appearance, attackSpeed, defense, aggroType, scale } = req.body;
     try {
         await pool.query(`
-            INSERT INTO monster_templates (id, name, level, type, stats, behavior, rewards, appearance, attack_speed, defense)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            INSERT INTO monster_templates (id, name, level, type, stats, behavior, rewards, appearance, attack_speed, defense, aggro_type, scale)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 level = EXCLUDED.level,
@@ -238,7 +301,9 @@ app.post('/api/admin/monsters/save', async (req: Request, res: Response): Promis
                 rewards = EXCLUDED.rewards,
                 appearance = EXCLUDED.appearance,
                 attack_speed = EXCLUDED.attack_speed,
-                defense = EXCLUDED.defense
+                defense = EXCLUDED.defense,
+                aggro_type = EXCLUDED.aggro_type,
+                scale = EXCLUDED.scale
         `, [
             id, name, level, type, 
             JSON.stringify(stats), 
@@ -246,10 +311,14 @@ app.post('/api/admin/monsters/save', async (req: Request, res: Response): Promis
             JSON.stringify(rewards),
             JSON.stringify(appearance),
             attackSpeed,
-            defense
+            defense,
+            aggroType || 'aggressive',
+            scale || 1.0
         ]);
         
-        res.json({ success: true });
+        await loadGameDataFromDB();
+
+res.json({ success: true });
     } catch (err) {
         console.error('[Admin] Error saving monster:', err);
         res.status(500).json({ error: 'Failed to save monster' });
@@ -692,7 +761,8 @@ app.delete('/api/admin/drops/:id', async (req: Request, res: Response): Promise<
 app.post('/api/admin/reload', async (req: Request, res: Response): Promise<void> => {
     try {
         await loadGameDataFromDB();
-        res.json({ success: true, message: 'Game data reloaded!' });
+
+res.json({ success: true, message: 'Game data reloaded!' });
     } catch (err) {
         console.error('[Admin] Error reloading data:', err);
         res.status(500).json({ error: 'Failed to reload data' });
@@ -759,7 +829,8 @@ app.post('/api/admin/visual/migrate-item-visuals', async (_req: Request, res: Re
 
         if (migrated > 0) {
             await loadGameDataFromDB();
-        }
+
+}
 
         res.json({ success: true, migrated });
     } catch (err) {
@@ -866,8 +937,8 @@ app.post('/api/admin/items/save', async (req: Request, res: Response): Promise<v
         
         // ✅ NOVO: Hot reload automático
         await loadGameDataFromDB();
-        
-        res.json({ 
+
+res.json({ 
             success: true, 
             item: result.rows[0]  // ✅ NOVO: retornar o item salvo
         });
@@ -1354,7 +1425,8 @@ app.delete('/api/admin/visual/configs/:id', async (req: Request, res: Response):
         await pool.query('UPDATE item_templates SET visual_config_id = NULL WHERE visual_config_id = $1', [id]);
         await pool.query('DELETE FROM visual_configs WHERE id = $1', [id]);
         await loadGameDataFromDB();
-        res.json({ success: true });
+
+res.json({ success: true });
     } catch (err) {
         console.error('[Admin] Error deleting visual config:', err);
         res.status(500).json({ error: 'Failed to delete visual config' });
@@ -1373,7 +1445,8 @@ app.post('/api/admin/visual/items/assign', async (req: Request, res: Response): 
             itemId
         ]);
         await loadGameDataFromDB();
-        res.json({ success: true });
+
+res.json({ success: true });
     } catch (err) {
         console.error('[Admin] Error assigning visual config:', err);
         res.status(500).json({ error: 'Failed to assign visual config' });
@@ -1654,10 +1727,34 @@ async function bootstrap() {
 
     await loadGameDataFromDB();
 
-    await gameServer.listen(port);
-    console.info(`\n🎮 ZYRA Server is live!`);
-    console.info(`🚀 Port: ${port}`);
-    console.info(`🌐 Mode: ${process.env.NODE_ENV || 'development'}\n`);
+
+    const maxPort = 2575;
+    const findFreePort = async (startPort: number): Promise<number> => {
+        for (let p = startPort; p <= maxPort; p += 1) {
+            const isFree = await new Promise<boolean>((resolve) => {
+                const tester = require('net').createServer();
+                tester.once('error', (err: any) => {
+                    if (err?.code === 'EADDRINUSE') resolve(false);
+                    else resolve(false);
+                });
+                tester.once('listening', () => {
+                    tester.close(() => resolve(true));
+                });
+                tester.listen(p, '0.0.0.0');
+            });
+            if (isFree) return p;
+            if (p < maxPort) {
+                console.warn(`Port ${p} in use, trying ${p + 1}...`);
+            }
+        }
+        throw new Error(`No free port found between ${startPort} and ${maxPort}`);
+    };
+
+    const boundPort = await findFreePort(port);
+    await gameServer.listen(boundPort);
+    console.info(`\nZYRA Server is live!`);
+    console.info(`Port: ${boundPort}`);
+    console.info(`Mode: ${process.env.NODE_ENV || 'development'}\n`);
 
   } catch (err) {
     console.error('[Admin] Error reloading data:', err);

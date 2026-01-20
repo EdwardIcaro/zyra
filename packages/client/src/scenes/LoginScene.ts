@@ -24,6 +24,8 @@ export class LoginScene extends Container {
   private statusText: Text;
 
   private accountInput: HTMLInputElement | null = null;
+  private rememberMeCheckbox: HTMLInputElement | null = null;
+  private rememberMeLabel: HTMLLabelElement | null = null;
   private charNameInput: HTMLInputElement | null = null;
 
   private accountId: number | null = null;
@@ -92,6 +94,24 @@ export class LoginScene extends Container {
     this.accountUI.addChild(label);
 
     this.accountInput = this.createHtmlInput('Account name', window.innerWidth / 2 - 180, 340, 360);
+    this.accountInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') void this.handleAccountLogin();
+    });
+
+    const rememberX = window.innerWidth / 2 - 180;
+    const rememberY = 385;
+    const remember = this.createHtmlCheckbox(rememberX, rememberY, 'Remember me');
+    this.rememberMeCheckbox = remember.checkbox;
+    this.rememberMeLabel = remember.label;
+
+    try {
+      const savedRemember = localStorage.getItem('zyra.rememberMe') === '1';
+      const savedUser = localStorage.getItem('zyra.accountUsername') || '';
+      if (this.rememberMeCheckbox) this.rememberMeCheckbox.checked = savedRemember;
+      if (this.accountInput && savedRemember && savedUser) this.accountInput.value = savedUser;
+    } catch {
+      // ignore
+    }
 
     const enterBtn = this.createButton('ENTER', 400, () => this.handleAccountLogin());
     this.accountUI.addChild(enterBtn);
@@ -144,6 +164,8 @@ export class LoginScene extends Container {
     this.selectedClassType = null;
 
     if (this.accountInput) this.accountInput.style.display = 'block';
+    if (this.rememberMeCheckbox) this.rememberMeCheckbox.style.display = 'block';
+    if (this.rememberMeLabel) this.rememberMeLabel.style.display = 'block';
     if (this.charNameInput) this.charNameInput.style.display = 'none';
   }
 
@@ -154,6 +176,8 @@ export class LoginScene extends Container {
     this.createUI.visible = false;
 
     if (this.accountInput) this.accountInput.style.display = 'none';
+    if (this.rememberMeCheckbox) this.rememberMeCheckbox.style.display = 'none';
+    if (this.rememberMeLabel) this.rememberMeLabel.style.display = 'none';
     if (this.charNameInput) this.charNameInput.style.display = 'none';
 
     this.renderCharacterCards();
@@ -166,6 +190,8 @@ export class LoginScene extends Container {
     this.createUI.visible = true;
 
     if (this.accountInput) this.accountInput.style.display = 'none';
+    if (this.rememberMeCheckbox) this.rememberMeCheckbox.style.display = 'none';
+    if (this.rememberMeLabel) this.rememberMeLabel.style.display = 'none';
     if (this.charNameInput) this.charNameInput.style.display = 'block';
 
     void this.loadActiveClassesForCreate();
@@ -189,6 +215,19 @@ export class LoginScene extends Container {
       this.accountId = data.accountId;
       this.accountUsername = username;
       this.characters = Array.isArray(data.characters) ? data.characters : [];
+
+      try {
+        const remember = this.rememberMeCheckbox?.checked === true;
+        if (remember) {
+          localStorage.setItem('zyra.rememberMe', '1');
+          localStorage.setItem('zyra.accountUsername', username);
+        } else {
+          localStorage.removeItem('zyra.rememberMe');
+          localStorage.removeItem('zyra.accountUsername');
+        }
+      } catch {
+        // ignore
+      }
 
       this.showCharacterSelectUI();
     } catch (err) {
@@ -449,10 +488,46 @@ export class LoginScene extends Container {
     return input;
   }
 
+  private createHtmlCheckbox(x: number, y: number, text: string): { checkbox: HTMLInputElement; label: HTMLLabelElement } {
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.style.position = 'absolute';
+    checkbox.style.zIndex = '9999';
+    checkbox.style.pointerEvents = 'auto';
+    checkbox.style.left = `${x}px`;
+    checkbox.style.top = `${y}px`;
+    checkbox.style.width = '18px';
+    checkbox.style.height = '18px';
+    checkbox.style.accentColor = '#4a90e2';
+
+    const label = document.createElement('label');
+    label.textContent = text;
+    label.style.position = 'absolute';
+    label.style.zIndex = '9999';
+    label.style.pointerEvents = 'auto';
+    label.style.left = `${x + 26}px`;
+    label.style.top = `${y - 2}px`;
+    label.style.color = '#cccccc';
+    label.style.fontSize = '14px';
+    label.style.userSelect = 'none';
+    label.style.cursor = 'pointer';
+    label.onclick = () => {
+      checkbox.checked = !checkbox.checked;
+    };
+
+    document.body.appendChild(checkbox);
+    document.body.appendChild(label);
+    return { checkbox, label };
+  }
+
   private removeAllInputs() {
     if (this.accountInput && this.accountInput.parentElement) this.accountInput.parentElement.removeChild(this.accountInput);
+    if (this.rememberMeCheckbox && this.rememberMeCheckbox.parentElement) this.rememberMeCheckbox.parentElement.removeChild(this.rememberMeCheckbox);
+    if (this.rememberMeLabel && this.rememberMeLabel.parentElement) this.rememberMeLabel.parentElement.removeChild(this.rememberMeLabel);
     if (this.charNameInput && this.charNameInput.parentElement) this.charNameInput.parentElement.removeChild(this.charNameInput);
     this.accountInput = null;
+    this.rememberMeCheckbox = null;
+    this.rememberMeLabel = null;
     this.charNameInput = null;
   }
 
@@ -462,6 +537,7 @@ export class LoginScene extends Container {
 
   onResize() {
     const accountValue = this.accountInput?.value || '';
+    const rememberChecked = this.rememberMeCheckbox?.checked === true;
     const charValue = this.charNameInput?.value || '';
     const accountVisible = this.accountInput?.style.display !== 'none';
     const charVisible = this.charNameInput?.style.display !== 'none';
@@ -474,6 +550,13 @@ export class LoginScene extends Container {
     if (this.accountInput) {
       this.accountInput.value = accountValue;
       this.accountInput.style.display = accountVisible ? 'block' : 'none';
+    }
+    if (this.rememberMeCheckbox) {
+      this.rememberMeCheckbox.checked = rememberChecked;
+      this.rememberMeCheckbox.style.display = accountVisible ? 'block' : 'none';
+    }
+    if (this.rememberMeLabel) {
+      this.rememberMeLabel.style.display = accountVisible ? 'block' : 'none';
     }
     if (this.charNameInput) {
       this.charNameInput.value = charValue;

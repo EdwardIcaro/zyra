@@ -213,6 +213,7 @@ export class CombatScene extends Container {
     room.state.monsters.onAdd((monster: MonsterState, id: string) => {
       const monsterEntity = new MonsterEntity(monster);
       monsterEntity.zIndex = 100;
+      monsterEntity.setAggroDebugVisible(this.collisionDebugVisible);
       this.monsters.set(id, monsterEntity);
       this.world.addChild(monsterEntity);
 
@@ -491,6 +492,7 @@ export class CombatScene extends Container {
       sprite.alpha = this.collisionDebugVisible ? 0.3 : 0;
       sprite.tint = this.collisionDebugVisible ? 0xff4444 : 0xffffff;
     });
+    this.monsters.forEach(monster => monster.setAggroDebugVisible(this.collisionDebugVisible));
   }
 
   update(deltaTime: number) {

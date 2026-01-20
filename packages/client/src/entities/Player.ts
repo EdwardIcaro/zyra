@@ -23,6 +23,12 @@ export class Player extends Container {
   
   private visualContainer: Container;
   private layerSprites: Map<string, Sprite> = new Map();
+  private shadow: Graphics;
+  private readonly shadowAlpha = 0.35;
+  private readonly shadowWidthFactor = 0.5;
+  private readonly shadowHeightFactor = 0.14;
+  private shadowOffset = -5;
+  private visualBaseY = 0;
   
   private hpBar: Graphics;
   private nameLabel: Text;
@@ -33,9 +39,13 @@ export class Player extends Container {
   private targetY: number;
   private lerpSpeed: number = 0.15;
   private animationTicker: number = 0;
+  private moveTicker: number = 0;
+  private moveBlend: number = 0;
+  private lastBodyBounce: number = 0;
   private facingDirection: number = 1;
   private lastServerX: number;
   private lastRenderX: number;
+  private lastRenderY: number;
   private equipmentListenerBound = false;
   private mirrorModes = new Map<Sprite, { mode: string; scale: number }>();
 
@@ -112,6 +122,7 @@ private async renderEquipmentLayer(layer: any, slot: string) {
     this.state = state;
     this.lastServerX = state.x;
     this.lastRenderX = state.x;
+    this.lastRenderY = state.y;
     
     this.targetX = state.x;
     this.targetY = state.y;
@@ -119,6 +130,9 @@ private async renderEquipmentLayer(layer: any, slot: string) {
 
     this.visualContainer = new Container();
     this.visualContainer.sortableChildren = true;
+    this.visualBaseY = this.visualContainer.y;
+
+    this.shadow = new Graphics();
 
     // UI Elements
     this.hpBar = new Graphics();
@@ -156,7 +170,7 @@ private async renderEquipmentLayer(layer: any, slot: string) {
       this.addChild(this.highlight);
     }
 
-    this.addChild(this.visualContainer, this.hpBar, this.nameLabel, this.levelLabel);
+    this.addChild(this.shadow, this.visualContainer, this.hpBar, this.nameLabel, this.levelLabel);
 
     // Carregar e renderizar camadas
     this.loadAndRenderLayers();
@@ -181,6 +195,30 @@ private async renderEquipmentLayer(layer: any, slot: string) {
       this.updateEquipmentVisuals();
       this.updateVisuals();
     });
+
+    this.updateShadow();
+  }
+
+  private updateShadow() {
+    const body = this.layerSprites.get('bodies');
+    const baseW = body?.width ?? 58;
+    const baseH = body?.height ?? 58;
+    const bodyBounce = this.lastBodyBounce;
+    const shadowBounce = bodyBounce * (0.015 / 0.04);
+
+    const rawScaleX = Math.abs(this.visualContainer.scale.x || 1);
+    const rawScaleY = Math.abs(this.visualContainer.scale.y || 1);
+    const baseScaleX = rawScaleX / Math.max(0.001, 1 - bodyBounce);
+    const baseScaleY = rawScaleY / Math.max(0.001, 1 + bodyBounce);
+    const effectiveW = baseW * baseScaleX;
+    const effectiveH = baseH * baseScaleY;
+
+    const rx = Math.max(4, effectiveW * this.shadowWidthFactor * (1 + shadowBounce));
+    const ry = Math.max(2, effectiveH * this.shadowHeightFactor * (1 + shadowBounce));
+    const y = effectiveH / 2 + this.shadowOffset;
+
+    this.shadow.clear();
+    this.shadow.ellipse(0, y, rx, ry).fill({ color: 0x000000, alpha: this.shadowAlpha });
   }
 
   
@@ -326,6 +364,9 @@ private async renderEquipmentLayer(layer: any, slot: string) {
   }
 
   public update(deltaTime: number) {
+    const prevX = this.x;
+    const prevY = this.y;
+
     // Movimento suave
     this.x += (this.targetX - this.x) * this.lerpSpeed;
     this.y += (this.targetY - this.y) * this.lerpSpeed;
@@ -335,12 +376,26 @@ private async renderEquipmentLayer(layer: any, slot: string) {
     }
     this.lastRenderX = this.x;
 
+    const stepDist = Math.hypot(this.x - prevX, this.y - prevY);
+    const isMoving = stepDist > 0.02;
+    const targetMoveBlend = isMoving ? 1 : 0;
+    this.moveBlend += (targetMoveBlend - this.moveBlend) * 0.12;
+
     // Animação de respiração
-    this.animationTicker += 0.1 * deltaTime;
-    const bounce = Math.sin(this.animationTicker) * 0.04;
+    this.animationTicker += 0.045 * deltaTime;
+    this.moveTicker += 0.18 * deltaTime;
+
+    const idleFactor = 1 - this.moveBlend;
+    const idleBounce = Math.sin(this.animationTicker) * 0.04 * idleFactor;
+    const moveBounce = Math.sin(this.moveTicker) * 0.05 * this.moveBlend;
+    const bounce = idleBounce + moveBounce;
+    this.lastBodyBounce = bounce;
     
     this.visualContainer.scale.y = 1 + bounce;
     this.visualContainer.scale.x = this.facingDirection * (1 - bounce);
+
+    const moveBob = Math.sin(this.moveTicker * 1.6) * 2.0 * this.moveBlend;
+    this.visualContainer.y = this.visualBaseY - moveBob;
     
     if (this.highlight) {
       this.highlight.scale.x = 1 - bounce;
@@ -348,6 +403,14 @@ private async renderEquipmentLayer(layer: any, slot: string) {
     }
 
     this.applyMirrorModes();
+    this.updateShadow();
+    this.lastRenderY = this.y;
+  }
+
+  public setShadowOffset(offset: number) {
+    if (!Number.isFinite(offset)) return;
+    this.shadowOffset = offset;
+    this.updateShadow();
   }
 
   private applyMirrorModes() {

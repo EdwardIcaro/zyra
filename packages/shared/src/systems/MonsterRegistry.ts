@@ -26,7 +26,13 @@ export class MonsterRegistry {
     public static setTemplates(templates: MonsterTemplate[]) {
         this.monsters.clear();
         templates.forEach(t => this.monsters.set(t.id, t));
-        console.log(`✅ [MonsterRegistry] ${this.monsters.size} monstros carregados do Banco de Dados.`);
+        const sample = templates.slice(0, 3).map(t => ({
+            id: t.id,
+            sprite: (t as any).appearance?.sprite || null,
+            scale: (t as any).scale ?? null,
+            aggro: (t as any).aggro_type ?? (t as any).aggroType ?? null
+        }));
+        console.log(`? [MonsterRegistry] ${this.monsters.size} monstros carregados do Banco de Dados.`, sample);
     }
 
     /**

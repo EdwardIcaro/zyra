@@ -345,13 +345,15 @@ export class CombatRoom extends Room<ZoneRoomState> {
       let target = this.state.players.get(m.targetPlayerId);
       if (!target || !target.isAlive) {
         m.targetPlayerId = '';
-        let lowestHp: PlayerState | null = null;
-        this.state.players.forEach(p => {
-          if (!p.isAlive) return;
-          if (Math.hypot(m.x - p.x, m.y - p.y) >= m.aggroRange) return;
-          if (!lowestHp || p.currentHp < lowestHp.currentHp) lowestHp = p;
-        });
-        if (lowestHp) m.targetPlayerId = lowestHp.playerId;
+        if (m.aggroType === 'aggressive') {
+          let lowestHp: PlayerState | null = null;
+          this.state.players.forEach(p => {
+            if (!p.isAlive) return;
+            if (Math.hypot(m.x - p.x, m.y - p.y) >= m.aggroRange) return;
+            if (!lowestHp || p.currentHp < lowestHp.currentHp) lowestHp = p;
+          });
+          if (lowestHp) m.targetPlayerId = lowestHp.playerId;
+        }
         if (m.targetPlayerId === '') {
           this.moveMonsterTo(m, m.spawnX, m.spawnY);
           return;
@@ -369,6 +371,7 @@ export class CombatRoom extends Room<ZoneRoomState> {
       this.resolveMonsterCollisions(m);
       if (dist < 45) {
         target!.currentHp -= m.damage / 30;
+        m.lastAttackAt = Date.now();
         if (target!.currentHp <= 0) { target!.isAlive = false; target!.currentHp = 0; }
       }
     });
@@ -411,12 +414,14 @@ export class CombatRoom extends Room<ZoneRoomState> {
     // 1. Recompensas de Ouro e XP
     const baseXP = monsterTemplate.rewards?.baseExp || 10;
     const expBonusPercent = this.buffManager.getTotalBonusPercent(killer, 'expBonus');
-    const rewardXP = Math.floor(baseXP * (1 + expBonusPercent / 100));
+    const levelDiff = (monster.level || 1) - killer.level;
+    const levelMult = Math.min(2.5, Math.max(0.2, 1 + levelDiff * 0.15));
+    const rewardXP = Math.floor(baseXP * (1 + expBonusPercent / 100) * levelMult);
     const rewardGold = Math.floor(
       Math.random() * ((monsterTemplate.rewards?.goldMax || 5) - (monsterTemplate.rewards?.goldMin || 1) + 1)
     ) + (monsterTemplate.rewards?.goldMin || 1);
     const goldBonusPercent = this.buffManager.getTotalBonusPercent(killer, 'goldBonus');
-    const finalGold = Math.floor(rewardGold * (1 + goldBonusPercent / 100));
+    const finalGold = Math.floor(rewardGold * (1 + goldBonusPercent / 100) * levelMult);
 
     killer.gold += finalGold;
     killer.experience += rewardXP;
@@ -542,8 +547,18 @@ export class CombatRoom extends Room<ZoneRoomState> {
   private spawnMonsterAtPoint(spawnId: string, spawnPoint: any) {
     const template = MonsterRegistry.getTemplate(spawnPoint.monster_id || spawnPoint.monsterId); // Usando MonsterRegistry
     if (!template) return;
-    const stats = (template.stats || {}) as any;
-    const behavior = (template.behavior || {}) as any;
+    const parseMaybeJson = (value: any) => {
+      if (!value) return {};
+      if (typeof value === 'string') {
+        try { return JSON.parse(value); } catch { return {}; }
+      }
+      return value;
+    };
+
+    const stats = parseMaybeJson((template as any).stats) as any;
+    const behavior = parseMaybeJson((template as any).behavior) as any;
+    const appearanceRaw = (template.appearance || {}) as any;
+    const appearance = typeof appearanceRaw === 'string' ? JSON.parse(appearanceRaw) : appearanceRaw;
     const templateAny = template as any;
     const monster = new MonsterState();
     monster.id = uuid(); 
@@ -561,9 +576,24 @@ export class CombatRoom extends Room<ZoneRoomState> {
     monster.speed = stats.speed ?? 1;
     monster.defense = stats.defense ?? templateAny.defense ?? 0;
     monster.attackSpeed = stats.attackSpeed ?? templateAny.attack_speed ?? 1.5;
-    monster.aggroRange = behavior.aggroRange ?? 0; 
-    monster.leashRange = behavior.leashRange ?? 200;
-    monster.aggroType = behavior.aggroType ?? 'passive';
+    monster.aggroType = templateAny.aggro_type ?? behavior.aggroType ?? 'aggressive';
+    const aggroRange = Number(behavior.aggroRange);
+    monster.aggroRange = Number.isFinite(aggroRange) && aggroRange > 0 ? aggroRange : (monster.aggroType === 'aggressive' ? 200 : 0);
+    const leashRange = Number(behavior.leashRange);
+    monster.leashRange = Number.isFinite(leashRange) && leashRange > 0 ? leashRange : 200;
+    monster.spriteFilename = appearance.sprite || '';
+    monster.scale = Number(templateAny.scale ?? appearance.scale ?? 1.0);
+    monster.visualEffect = appearance.effect || 'none';
+    monster.shadowEnabled = appearance.shadow === true;
+    const shadowAlpha = Number(appearance.shadowAlpha);
+    const shadowOffset = Number(appearance.shadowOffset);
+    const shadowScale = Number(appearance.shadowScale);
+    const sandboxScale = Number(appearance.sandboxScale);
+    monster.shadowAlpha = Number.isFinite(shadowAlpha) ? shadowAlpha : 0.35;
+    monster.shadowOffset = Number.isFinite(shadowOffset) ? shadowOffset : 18;
+    monster.shadowScale = Number.isFinite(shadowScale) ? shadowScale : 1;
+    monster.sandboxScale = Number.isFinite(sandboxScale) ? sandboxScale : 1;
+    monster.shadowEnabled = appearance.shadow === true;
     
     this.state.monsters.set(monster.id, monster);
     this.activeMonsters.set(spawnId, monster.id);
@@ -588,9 +618,10 @@ export class CombatRoom extends Room<ZoneRoomState> {
       this.state.monsters.forEach((m, id) => {
         if (Math.hypot(p.x - m.x, p.y - m.y) < 30) {
           m.currentHp -= p.damage;
+          const killer = this.state.players.get(p.ownerId);
+          if (killer && m.targetPlayerId === '') m.targetPlayerId = killer.playerId;
           this.state.projectiles.delete(p.id);
           if (m.currentHp <= 0) {
-            const killer = this.state.players.get(p.ownerId);
             if (killer) this.onMonsterKilled(m, killer, id);
           }
         }
@@ -625,8 +656,10 @@ export class CombatRoom extends Room<ZoneRoomState> {
       const dx = player.x - monster.x;
       const dy = player.y - monster.y;
       const dist = Math.hypot(dx, dy) || 1;
-      if (dist >= radius * 2) return;
-      const push = (radius * 2 - dist);
+      const monsterRadius = radius * Math.max(0.1, (monster.scale || 1) * (monster.sandboxScale || 1));
+      const total = radius + monsterRadius;
+      if (dist >= total) return;
+      const push = (total - dist);
       player.x += (dx / dist) * push;
       player.y += (dy / dist) * push;
     });
@@ -639,8 +672,11 @@ export class CombatRoom extends Room<ZoneRoomState> {
       const dx = monster.x - other.x;
       const dy = monster.y - other.y;
       const dist = Math.hypot(dx, dy) || 1;
-      if (dist >= radius * 2) return;
-      const push = (radius * 2 - dist) / 2;
+      const radiusA = radius * Math.max(0.1, (monster.scale || 1) * (monster.sandboxScale || 1));
+      const radiusB = radius * Math.max(0.1, (other.scale || 1) * (other.sandboxScale || 1));
+      const total = radiusA + radiusB;
+      if (dist >= total) return;
+      const push = (total - dist) / 2;
       monster.x += (dx / dist) * push;
       monster.y += (dy / dist) * push;
     });
@@ -648,8 +684,10 @@ export class CombatRoom extends Room<ZoneRoomState> {
       const dx = monster.x - player.x;
       const dy = monster.y - player.y;
       const dist = Math.hypot(dx, dy) || 1;
-      if (dist >= radius * 2) return;
-      const push = (radius * 2 - dist);
+      const monsterRadius = radius * Math.max(0.1, (monster.scale || 1) * (monster.sandboxScale || 1));
+      const total = radius + monsterRadius;
+      if (dist >= total) return;
+      const push = (total - dist);
       monster.x += (dx / dist) * push;
       monster.y += (dy / dist) * push;
     });

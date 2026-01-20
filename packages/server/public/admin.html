@@ -113,6 +113,88 @@
     .text-muted {
         color: var(--text-muted) !important;
     }
+
+    .monster-preview {
+        transform-origin: center center;
+    }
+    .monster-preview-wrapper {
+        transform-origin: center center;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .monster-preview-stage {
+        background: linear-gradient(180deg, #2f2f36 0%, #26262b 100%);
+        background-image:
+            linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+        background-size: 24px 24px;
+    }
+    .monster-selection-preview {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 0.45;
+        filter: brightness(0) saturate(100%) invert(89%) sepia(94%) saturate(748%) hue-rotate(357deg) brightness(105%) contrast(104%);
+        pointer-events: none;
+        image-rendering: pixelated;
+    }
+        .monster-preview-shadow {
+        position: absolute;
+        width: 44px;
+        height: 12px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.35);
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        filter: blur(1px);
+    }
+    .monster-preview-circle {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #a33;
+        border: 3px solid #000;
+        transform-origin: center center;
+    }
+    @keyframes monsterPreviewPulse {
+        0% { opacity: 0.92; }
+        50% { opacity: 1; }
+        100% { opacity: 0.92; }
+    }
+    @keyframes monsterPreviewGlow {
+        0% { filter: drop-shadow(0 0 6px rgba(136, 255, 204, 0.2)); }
+        50% { filter: drop-shadow(0 0 12px rgba(136, 255, 204, 0.5)); }
+        100% { filter: drop-shadow(0 0 6px rgba(136, 255, 204, 0.2)); }
+    }
+    @keyframes monsterPreviewAura {
+        0% { filter: drop-shadow(0 0 8px rgba(102, 204, 255, 0.2)); }
+        50% { filter: drop-shadow(0 0 16px rgba(102, 204, 255, 0.5)); }
+        100% { filter: drop-shadow(0 0 8px rgba(102, 204, 255, 0.2)); }
+    }
+    @keyframes monsterPreviewFloat {
+        0% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+        100% { transform: translateY(0); }
+    }
+    @keyframes monsterPreviewFloatShadow {
+        0% { transform: translateX(-50%) scale(1); }
+        50% { transform: translateX(-50%) scale(0.94); }
+        100% { transform: translateX(-50%) scale(1); }
+    }
+    @keyframes monsterPreviewSlime {
+        0% { transform: scale(1, 1); }
+        50% { transform: scale(1.08, 0.92); }
+        100% { transform: scale(1, 1); }
+    }
+    @keyframes monsterPreviewSlimeShadow {
+        0% { transform: translateX(-50%) scale(1, 1); }
+        50% { transform: translateX(-50%) scale(1.06, 0.92); }
+        100% { transform: translateX(-50%) scale(1, 1); }
+    }
 </style>
 </head>
 <body>
@@ -412,6 +494,65 @@
                     </div>
                 </div>
                 <button class="btn btn-primary w-100" onclick="saveMonsterDrop()">Salvar Drop</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Aparencia do Monstro -->
+<div class="modal fade" id="monsterAppearanceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header">
+                <h5 class="modal-title">Aparencia do Monstro</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="border rounded monster-preview-stage d-flex align-items-center justify-content-center" style="height: 220px;">
+                            <div id="monsterPreviewScale" class="monster-preview-wrapper">
+                                <div id="monsterSpriteShadow" class="monster-preview-shadow" style="display: none;"></div>
+                                <img id="monsterSelectionPreview" class="monster-selection-preview" style="display: none;" />
+                                <div id="monsterPreviewEffect" style="position: relative; display: flex; align-items: center; justify-content: center; transform-origin: center center;">
+                                    <div id="monsterSpriteCircle" class="monster-preview-circle" style="display: none;"></div>
+                                    <img id="monsterSpritePreview" class="monster-preview" style="max-width: 100%; max-height: 100%; image-rendering: pixelated; display: none;" />
+                                </div>
+                            </div>
+                            <div id="monsterSpriteFallback" class="text-muted">Sem sprite (bola padrao)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label>Sprite</label>
+                        <select id="monsterSpriteSelect" class="form-select mb-2"></select>
+                        <button class="btn btn-secondary w-100 mb-3" onclick="clearMonsterSprite()">Usar bola padrao</button>
+                        <label>Tamanho (scale)</label>
+                        <input type="range" id="monsterScaleInput" class="form-range mb-1" min="0.01" max="3" step="0.01">
+                        <div class="text-muted mb-3">Scale atual: <span id="monsterScaleValue">1.0</span></div>
+                        <label>Efeito</label>
+                        <select id="monsterEffectSelect" class="form-select mb-2">
+                            <option value="none">Nenhum</option>
+                            <option value="pulse">Pulse</option>
+                            <option value="glow">Glow</option>
+                            <option value="aura">Aura</option>
+                            <option value="float">Float</option>
+                            <option value="slime">Slime</option>
+                        </select>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="monsterShadowCheck">
+                            <label class="form-check-label" for="monsterShadowCheck">Shadow</label>
+                        </div>
+                        <label class="mt-2">Shadow alpha</label>
+                        <input type="range" id="monsterShadowAlpha" class="form-range mb-1" min="0" max="0.8" step="0.05">
+                        <div class="text-muted mb-2">Alpha: <span id="monsterShadowAlphaValue">0.35</span></div>
+                        <label>Shadow offset</label>
+                        <input type="range" id="monsterShadowOffset" class="form-range mb-1" min="-80" max="80" step="1">
+                        <div class="text-muted mb-2">Offset: <span id="monsterShadowOffsetValue">18</span></div>
+                        <label>Sandbox scale</label>
+                        <input type="range" id="monsterSandboxScale" class="form-range mb-1" min="0.5" max="3" step="0.1">
+                        <div class="text-muted mb-2">Sandbox: <span id="monsterSandboxScaleValue">1.0</span></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -753,6 +894,23 @@ document.getElementById('itemForm').onsubmit = async (e) => {
                         <input type="number" id="m_defense" class="form-control mb-2" value="0">
                         <label>Attack Speed (s)</label>
                         <input type="number" id="m_attackSpeed" class="form-control mb-2" value="1.5" step="0.1">
+                        <label>Scale</label>
+                        <input type="number" id="m_scale" class="form-control mb-2" value="1.0" min="0.01" step="0.01">
+                        <label>Aggro</label>
+                        <select id="m_aggroType" class="form-select mb-2">
+                            <option value="aggressive">Aggressive</option>
+                            <option value="passive">Passive</option>
+                        </select>
+                        <label>Sprite</label>
+                        <div class="d-flex gap-2 mb-2">
+                            <input type="text" id="m_sprite" class="form-control" placeholder="sprite filename (optional)" readonly>
+                            <button type="button" class="btn btn-secondary" onclick="openMonsterAppearance()">Apar?ncia</button>
+                        </div>
+                        <input type="hidden" id="m_effect" value="none">
+                        <input type="hidden" id="m_shadow" value="false">
+                        <input type="hidden" id="m_shadowAlpha" value="0.35">
+                        <input type="hidden" id="m_shadowOffset" value="18">
+                        <input type="hidden" id="m_sandboxScale" value="1.0">
                         <label>Exp Base</label>
                         <input type="number" id="m_exp" class="form-control mb-3" value="10">
                         <button type="submit" class="btn btn-warning w-100">Salvar Monstro</button>
@@ -1073,7 +1231,7 @@ document.getElementById('itemForm').onsubmit = async (e) => {
                     <input type="number" id="ui_offset_y" class="form-control mb-2" value="0" oninput="handleUiFormChange()">
 
                     <label>Scale</label>
-                    <input type="number" id="ui_scale" class="form-control mb-2" value="1" step="0.1" min="0.5" max="2" oninput="handleUiFormChange()">
+                    <input type="number" id="ui_scale" class="form-control mb-2" value="1" step="0.1" min="0.2" max="2" oninput="handleUiFormChange()">
                 </div>
 
                 <div class="card p-4 mb-3" id="ui_element_controls">
@@ -1450,6 +1608,15 @@ async function loadMonsters() {
 
 document.getElementById('monsterForm').onsubmit = async (e) => {
     e.preventDefault();
+    const existing = window.cachedMonsters?.find(x => x.id === document.getElementById('m_id').value);
+    const baseBehavior = existing?.behavior || {};
+    const appearanceRaw = existing?.appearance || {};
+    const baseAppearance = typeof appearanceRaw === 'string' ? JSON.parse(appearanceRaw) : appearanceRaw;
+    const spriteFilename = document.getElementById('m_sprite').value || null;
+    const effectValue = document.getElementById('m_effect').value || 'none';
+    const shadowValue = document.getElementById('m_shadow').value === 'true';
+    const aggroType = document.getElementById('m_aggroType').value || 'aggressive';
+    const scale = parseFloat(document.getElementById('m_scale').value) || 1.0;
     await fetch(`${API_URL}/api/admin/monsters/save`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -1459,10 +1626,14 @@ document.getElementById('monsterForm').onsubmit = async (e) => {
             level: parseInt(document.getElementById('m_level').value),
             defense: parseInt(document.getElementById('m_defense').value),
             attackSpeed: parseFloat(document.getElementById('m_attackSpeed').value),
+            scale,
+            aggroType,
             stats: { 
                 maxHp: parseInt(document.getElementById('m_hp').value),
                 damage: parseInt(document.getElementById('m_damage').value)
             },
+            behavior: { ...baseBehavior, aggroType },
+            appearance: { ...baseAppearance, sprite: spriteFilename, effect: effectValue, shadow: shadowValue, shadowAlpha: parseFloat(document.getElementById('m_shadowAlpha').value) || 0.35, shadowOffset: parseFloat(document.getElementById('m_shadowOffset').value) || 18, sandboxScale: parseFloat(document.getElementById('m_sandboxScale').value) || 1.0 },
             rewards: { baseExp: parseInt(document.getElementById('m_exp').value) }
         })
     });
@@ -1473,6 +1644,7 @@ document.getElementById('monsterForm').onsubmit = async (e) => {
 function editMonster(id) {
     const m = window.cachedMonsters.find(x => x.id === id);
     if(!m) return;
+    const appearance = typeof m.appearance === 'string' ? JSON.parse(m.appearance) : (m.appearance || {});
     document.getElementById('m_id').value = m.id;
     document.getElementById('m_name').value = m.name;
     document.getElementById('m_level').value = m.level;
@@ -1480,7 +1652,177 @@ function editMonster(id) {
     document.getElementById('m_damage').value = m.stats?.damage || 5;
     document.getElementById('m_defense').value = m.defense ?? 0;
     document.getElementById('m_attackSpeed').value = m.attack_speed ?? 1.5;
+    document.getElementById('m_scale').value = m.scale ?? 1.0;
+    document.getElementById('m_aggroType').value = m.aggro_type || m.behavior?.aggroType || 'aggressive';
+    document.getElementById('m_sprite').value = appearance?.sprite || '';
+    document.getElementById('m_effect').value = appearance?.effect || 'none';
+    document.getElementById('m_shadowAlpha').value = (appearance?.shadowAlpha ?? 0.35);
+    document.getElementById('m_shadowOffset').value = (appearance?.shadowOffset ?? 18);
+    document.getElementById('m_sandboxScale').value = (appearance?.sandboxScale ?? 1.0);
+    document.getElementById('m_shadow').value = appearance?.shadow ? 'true' : 'false';
     document.getElementById('m_exp').value = m.rewards?.baseExp || 10;
+}
+
+let cachedMonsterSprites = [];
+
+async function loadMonsterSprites() {
+    if (cachedMonsterSprites.length > 0) return;
+    const res = await fetch(`${API_URL}/api/admin/assets/monsters`);
+    cachedMonsterSprites = await res.json();
+    const select = document.getElementById('monsterSpriteSelect');
+    if (!select) return;
+    const options = ['<option value="">Nenhum (bola padrao)</option>'];
+    cachedMonsterSprites.forEach((f) => {
+        options.push(`<option value="${f}">${f}</option>`);
+    });
+    select.innerHTML = options.join('');
+    select.onchange = () => {
+        const value = select.value || '';
+        document.getElementById('m_sprite').value = value;
+        updateMonsterAppearancePreview();
+    };
+}
+
+function updateMonsterAppearancePreview() {
+    const img = document.getElementById('monsterSpritePreview');
+    const fallback = document.getElementById('monsterSpriteFallback');
+    const circle = document.getElementById('monsterSpriteCircle');
+    const shadow = document.getElementById('monsterSpriteShadow');
+    const selectionImg = document.getElementById('monsterSelectionPreview');
+    const value = document.getElementById('m_sprite').value || '';
+    if (value) {
+        img.src = `${API_URL}/assets/monsters/${value}`;
+        img.onload = () => applyMonsterPreviewShadowSize();
+        img.style.display = 'block';
+        circle.style.display = 'none';
+        fallback.style.display = 'none';
+        selectionImg.src = `${API_URL}/assets/monsters/${value}`;
+        selectionImg.onload = () => applyMonsterPreviewShadowSize();
+        selectionImg.style.display = 'block';
+    } else {
+        img.style.display = 'none';
+        circle.style.display = 'block';
+        fallback.style.display = 'block';
+        selectionImg.style.display = 'none';
+    }
+    shadow.style.display = document.getElementById('monsterShadowCheck').checked ? 'block' : 'none';
+    applyMonsterPreviewScale();
+    applyMonsterPreviewShadowAlpha();
+    applyMonsterPreviewShadowSize();
+    applyMonsterPreviewSandbox();
+    applyMonsterPreviewEffect();
+}
+
+function applyMonsterPreviewScale() {
+    const scaleValue = parseFloat(document.getElementById('monsterScaleInput').value) || 1.0;
+    document.getElementById('monsterScaleValue').textContent = scaleValue.toFixed(2);
+    document.getElementById('m_scale').value = scaleValue.toFixed(2);
+    const scaleRoot = document.getElementById('monsterPreviewScale');
+    scaleRoot.style.transform = `scale(${scaleValue})`;
+}
+
+function applyMonsterPreviewShadowAlpha() {
+    const alphaValue = parseFloat(document.getElementById('monsterShadowAlpha').value) || 0;
+    document.getElementById('monsterShadowAlphaValue').textContent = alphaValue.toFixed(2);
+    document.getElementById('m_shadowAlpha').value = alphaValue.toFixed(2);
+    const shadow = document.getElementById('monsterSpriteShadow');
+    shadow.style.background = `rgba(0, 0, 0, ${alphaValue})`;
+}
+
+function applyMonsterPreviewShadowSize() {
+    const shadow = document.getElementById('monsterSpriteShadow');
+    const img = document.getElementById('monsterSpritePreview');
+    const circle = document.getElementById('monsterSpriteCircle');
+    const offsetValue = parseFloat(document.getElementById('monsterShadowOffset').value) || 18;
+    document.getElementById('monsterShadowOffsetValue').textContent = offsetValue.toFixed(0);
+    document.getElementById('m_shadowOffset').value = offsetValue.toFixed(0);
+    const baseSize = img && img.style.display !== 'none' && img.naturalWidth ? Math.max(img.naturalWidth, img.naturalHeight) : (circle ? 44 : 44);
+    const width = baseSize * 0.5;
+    const height = baseSize * 0.14;
+    const offset = baseSize * 0.5 + offsetValue;
+    shadow.style.width = `${Math.max(6, width)}px`;
+    shadow.style.height = `${Math.max(2, height)}px`;
+    shadow.style.top = `calc(50% + ${offset}px)`;
+}
+
+function applyMonsterPreviewSandbox() {
+    const sandboxValue = parseFloat(document.getElementById('monsterSandboxScale').value) || 1.0;
+    document.getElementById('monsterSandboxScaleValue').textContent = sandboxValue.toFixed(2);
+    document.getElementById('m_sandboxScale').value = sandboxValue.toFixed(2);
+    const selectionImg = document.getElementById('monsterSelectionPreview');
+    selectionImg.style.transform = `translate(-50%, -50%) scale(${sandboxValue})`;
+}
+
+function applyMonsterPreviewEffect() {
+    const effectValue = document.getElementById('monsterEffectSelect').value || 'none';
+    document.getElementById('m_effect').value = effectValue;
+    const effectRoot = document.getElementById('monsterPreviewEffect');
+    const img = document.getElementById('monsterSpritePreview');
+    const circle = document.getElementById('monsterSpriteCircle');
+    const shadow = document.getElementById('monsterSpriteShadow');
+    effectRoot.style.animation = '';
+    effectRoot.style.filter = '';
+    img.style.animation = '';
+    circle.style.animation = '';
+    shadow.style.animation = '';
+    if (effectValue === 'pulse') {
+        img.style.animation = 'monsterPreviewPulse 1s ease-in-out infinite';
+        circle.style.animation = 'monsterPreviewPulse 1s ease-in-out infinite';
+    } else if (effectValue === 'glow') {
+        effectRoot.style.animation = 'monsterPreviewGlow 1.2s ease-in-out infinite';
+    } else if (effectValue === 'aura') {
+        effectRoot.style.animation = 'monsterPreviewAura 1.2s ease-in-out infinite';
+    } else if (effectValue === 'float') {
+        effectRoot.style.animation = 'monsterPreviewFloat 1.3s ease-in-out infinite';
+        shadow.style.animation = 'monsterPreviewFloatShadow 1.3s ease-in-out infinite';
+    } else if (effectValue === 'slime') {
+        effectRoot.style.animation = 'monsterPreviewSlime 0.9s ease-in-out infinite';
+        shadow.style.animation = 'monsterPreviewSlimeShadow 0.9s ease-in-out infinite';
+    }
+}
+
+async function openMonsterAppearance() {
+    await loadMonsterSprites();
+    const select = document.getElementById('monsterSpriteSelect');
+    const value = document.getElementById('m_sprite').value || '';
+    if (select) select.value = value;
+    const scaleInput = document.getElementById('monsterScaleInput');
+    const currentScale = parseFloat(document.getElementById('m_scale').value) || 1.0;
+    scaleInput.value = String(currentScale);
+    const effectSelect = document.getElementById('monsterEffectSelect');
+    const currentEffect = document.getElementById('m_effect').value || 'none';
+    effectSelect.value = currentEffect;
+    const shadowCheck = document.getElementById('monsterShadowCheck');
+    const currentShadow = document.getElementById('m_shadow').value === 'true';
+    shadowCheck.checked = currentShadow;
+    const shadowAlpha = document.getElementById('monsterShadowAlpha');
+    const currentShadowAlpha = parseFloat(document.getElementById('m_shadowAlpha').value) || 0.35;
+    shadowAlpha.value = String(currentShadowAlpha);
+    const shadowOffset = document.getElementById('monsterShadowOffset');
+    const currentShadowOffset = parseFloat(document.getElementById('m_shadowOffset').value) || 18;
+    shadowOffset.value = String(currentShadowOffset);
+    const sandboxScale = document.getElementById('monsterSandboxScale');
+    const currentSandbox = parseFloat(document.getElementById('m_sandboxScale').value) || 1.0;
+    sandboxScale.value = String(currentSandbox);
+    scaleInput.oninput = () => applyMonsterPreviewScale();
+    effectSelect.onchange = () => applyMonsterPreviewEffect();
+    shadowAlpha.oninput = () => applyMonsterPreviewShadowAlpha();
+    shadowOffset.oninput = () => applyMonsterPreviewShadowSize();
+    sandboxScale.oninput = () => applyMonsterPreviewSandbox();
+    shadowCheck.onchange = () => {
+        document.getElementById('m_shadow').value = shadowCheck.checked ? 'true' : 'false';
+        updateMonsterAppearancePreview();
+    };
+    updateMonsterAppearancePreview();
+    const modal = new bootstrap.Modal(document.getElementById('monsterAppearanceModal'));
+    modal.show();
+}
+
+function clearMonsterSprite() {
+    document.getElementById('m_sprite').value = '';
+    const select = document.getElementById('monsterSpriteSelect');
+    if (select) select.value = '';
+    updateMonsterAppearancePreview();
 }
 
 async function deleteMonster(id) {
