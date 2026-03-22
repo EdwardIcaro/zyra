@@ -15,6 +15,8 @@ export class GameHUD extends Container {
   private buffBar: BuffBarUI;
   private buffTemplates = new Map<string, any>();
   private lastPlayer: PlayerState | null = null;
+  private lastExperience = 0;
+  private expContainer: Container | null = null;
 
   constructor() {
     super();
@@ -27,8 +29,9 @@ export class GameHUD extends Container {
     this.addChild(this.buffBar);
 
     // Experience Bar (below buff row)
-    const expContainer = new Container();
-    expContainer.position.set(0, GameHUD.BUFF_ICON_ROW_HEIGHT + GameHUD.BUFF_XP_GAP);
+    this.expContainer = new Container();
+    this.expContainer.position.set(0, GameHUD.BUFF_ICON_ROW_HEIGHT + GameHUD.BUFF_XP_GAP);
+    const expContainer = this.expContainer;
 
     const expBg = new Graphics()
       .rect(0, 0, GameHUD.XP_BAR_WIDTH, GameHUD.XP_BAR_HEIGHT)
@@ -56,15 +59,65 @@ export class GameHUD extends Container {
 
     // Experience Bar - Usando getRequiredXP do shared
     const requiredXP = getRequiredXP(player.level);
-    const expPercent = Math.max(0, Math.min(1, player.experience / requiredXP));
-    
+    const expValue = typeof player.experience === 'number' ? player.experience : 0;
+    const expPercent = Math.max(0, Math.min(1, expValue / requiredXP));
+
+    // 🎬 Detectar ganho de XP e criar efeito flutuante
+    const xpGain = expValue - this.lastExperience;
+    if (xpGain > 0) {
+      this.createXPFloatingText(xpGain);
+    }
+    this.lastExperience = expValue;
+
     this.expBar.clear()
       .rect(0, 0, GameHUD.XP_BAR_WIDTH * expPercent, GameHUD.XP_BAR_HEIGHT)
       .fill(0xf1c40f); // Amarelo/Dourado para XP
-    
-    this.expText.text = `${Math.floor(player.experience)} / ${requiredXP} XP`;
+
+    this.expText.text = `${Math.floor(expValue)} / ${requiredXP} XP`;
 
     this.buffBar.updateBuffs(player.buffs, this.buffTemplates);
+  }
+
+  /**
+   * Criar texto flutuante "+XXX XP" com animação de fade-out
+   */
+  private createXPFloatingText(xpAmount: number) {
+    if (!this.expContainer) return;
+
+    const floatingText = new Text({
+      text: `+${xpAmount} XP`,
+      style: {
+        fontSize: 16,
+        fill: 0xFFFF00,
+        fontFamily: 'Arial',
+        fontWeight: 'bold',
+        stroke: { color: 0x000000, width: 2 }
+      }
+    });
+    floatingText.anchor.set(0.5);
+    floatingText.x = GameHUD.XP_BAR_WIDTH / 2;
+    floatingText.y = 10;
+    floatingText.alpha = 1;
+    this.expContainer.addChild(floatingText);
+
+    // Animar: subir e fade-out em 1 segundo
+    const startTime = Date.now();
+    const duration = 1000;
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(1, elapsed / duration);
+
+      floatingText.y = 10 - progress * 50; // Subir 50px
+      floatingText.alpha = 1 - progress;
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        this.expContainer!.removeChild(floatingText);
+        floatingText.destroy();
+      }
+    };
+    requestAnimationFrame(animate);
   }
 
   tick(nowMs: number) {
