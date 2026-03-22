@@ -734,17 +734,13 @@ export class CombatScene extends Container {
         return;
       }
 
-      // ✅ CONJURE TOGGLE (abre/fecha painel de conjuração)
+      // ✅ CONJURE TOGGLE (F abre/fecha painel de conjuração)
       if (key === this.keybindings.conjure) {
-        console.log('[CombatScene] 🎯 Conjure key detectado:', key, '| isConjuring:', this.conjurationSystem?.isConjuring());
         e.preventDefault();
         if (this.conjurationSystem?.isConjuring()) {
-          console.log('[CombatScene] 🔮 Desativando conjuração (tecla:', key, ')');
           this.conjurationSystem.deactivate();
-        } else if (!this.inventoryUI.visible && !this.cardMenuUI?.visible) {
-          console.log('[CombatScene] 🔮 Ativando conjuração (tecla:', key, ')');
+        } else {
           this.conjurationSystem?.activate();
-          console.log('[CombatScene] ✅ activate() foi chamado');
         }
         return;
       }

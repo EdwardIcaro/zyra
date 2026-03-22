@@ -16,9 +16,6 @@ interface SpellSlotUIElement {
   rarityBar: Graphics;
   durationBalloon: Container;
   durationText: Text;
-  cooldownOverlay?: Graphics;
-  cooldownBar?: Graphics;
-  cooldownTimer?: Text;
   currentSlot?: any;
 }
 
@@ -188,41 +185,6 @@ export class SpellSlotsUI {
 
     container.addChild(durationBalloon);
 
-    // Cooldown overlay (escuro, aparece quando em cooldown)
-    const cooldownOverlay = new Graphics();
-    cooldownOverlay.rect(0, 0, this.slotWidth, this.slotHeight - 8);
-    cooldownOverlay.fill({ color: 0x000000, alpha: 0.7 });
-    cooldownOverlay.zIndex = 5;
-    cooldownOverlay.visible = false;
-    container.addChild(cooldownOverlay);
-
-    // Barra de cooldown (vermelha, encolhe com o tempo)
-    const cooldownBar = new Graphics();
-    cooldownBar.rect(0, this.slotHeight - 8, this.slotWidth, 8);
-    cooldownBar.fill({ color: 0xFF0000, alpha: 0.9 });
-    cooldownBar.zIndex = 6;
-    cooldownBar.visible = false;
-    container.addChild(cooldownBar);
-
-    // Timer de cooldown (texto no centro)
-    const cooldownTimer = new Text({
-      text: '0.0s',
-      style: new TextStyle({
-        fontFamily: 'Arial Black',
-        fontSize: 14,
-        fill: 0xFFFFFF,
-        fontWeight: 'bold',
-        align: 'center',
-        stroke: { color: 0x000000, width: 2 }
-      })
-    });
-    cooldownTimer.anchor.set(0.5);
-    cooldownTimer.x = this.slotWidth / 2;
-    cooldownTimer.y = this.slotHeight / 2;
-    cooldownTimer.zIndex = 7;
-    cooldownTimer.visible = false;
-    container.addChild(cooldownTimer);
-
     return {
       container,
       background,
@@ -230,10 +192,7 @@ export class SpellSlotsUI {
       labelText,
       rarityBar,
       durationBalloon,
-      durationText,
-      cooldownOverlay,
-      cooldownBar,
-      cooldownTimer
+      durationText
     };
   }
 
@@ -407,21 +366,6 @@ export class SpellSlotsUI {
         } else {
           (slotUI.durationText.style as any).fill = 0xFFD700; // Dourado
         }
-
-        // 🎬 Atualizar overlay de cooldown
-        const maxDuration = this.cardDurations.get(slot.cardId) || 1000;
-        const isOnCooldown = timeRemaining > 0;
-
-        if (slotUI.cooldownOverlay) slotUI.cooldownOverlay.visible = isOnCooldown;
-        if (slotUI.cooldownBar) {
-          slotUI.cooldownBar.visible = isOnCooldown;
-          const cooldownPercent = Math.max(0, timeRemaining / maxDuration);
-          slotUI.cooldownBar.width = this.slotWidth * cooldownPercent;
-        }
-        if (slotUI.cooldownTimer) {
-          slotUI.cooldownTimer.visible = isOnCooldown;
-          slotUI.cooldownTimer.text = `${secondsRemaining.toFixed(1)}s`;
-        }
       }
     }
 
@@ -440,21 +384,6 @@ export class SpellSlotsUI {
           (this.passiveSlotUI.durationText.style as any).fill = 0xFFA500; // Laranja
         } else {
           (this.passiveSlotUI.durationText.style as any).fill = 0xFFD700; // Dourado
-        }
-
-        // 🎬 Atualizar overlay de cooldown
-        const maxDuration = this.cardDurations.get(passiveSlot.cardId) || 1000;
-        const isOnCooldown = timeRemaining > 0;
-
-        if (this.passiveSlotUI.cooldownOverlay) this.passiveSlotUI.cooldownOverlay.visible = isOnCooldown;
-        if (this.passiveSlotUI.cooldownBar) {
-          this.passiveSlotUI.cooldownBar.visible = isOnCooldown;
-          const cooldownPercent = Math.max(0, timeRemaining / maxDuration);
-          this.passiveSlotUI.cooldownBar.width = this.slotWidth * cooldownPercent;
-        }
-        if (this.passiveSlotUI.cooldownTimer) {
-          this.passiveSlotUI.cooldownTimer.visible = isOnCooldown;
-          this.passiveSlotUI.cooldownTimer.text = `${secondsRemaining.toFixed(1)}s`;
         }
       }
     }
